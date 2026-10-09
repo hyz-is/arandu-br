@@ -1,3 +1,5 @@
 module github.com/hyz-is/arandu-br
 
 go 1.26.0
+
+require github.com/arandu-io/hesape v0.50.1
