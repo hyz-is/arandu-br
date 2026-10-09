@@ -1,21 +1,23 @@
 # What this package declares about itself.
 #
-# The declaration is capability, not intent, and `aru doctor` compares it with
-# what the code imports and calls. A package that says it makes no outbound
-# calls and then holds an HTTP client is rejected, which is what makes the
-# four lines below worth reading before installing anything.
+# The declaration is capability, not intent. `aru doctor` reads the application
+# and never opens an installed package, so tests/Unit/audit_test.go is what
+# compares these four lines with what the code calls.
 
 name = "hyz-is/br"
+# This package imports no framework package; it requires Hesape v0.50.1, and
+# 0.51 is the first Framework release built on that Hesape. An application on
+# an older Framework would have its Hesape raised past the one it was built
+# with by installing this.
 framework = ">= 0.51"
 profiles = ["conventional", "performance"]
 
 [permissions]
-# It answers requests and reads its own rows. Nothing leaves the process.
+# It turns strings into strings. Nothing leaves the process.
 network = false
-# It keeps no state outside the database.
+# It reads no file and writes none; every value arrives as an argument.
 filesystem = false
 # It runs no other program.
 exec = false
-# module.go owns the brs table, so whoever installs this has to run
-# `aru migrate`. Declaring it is how they find that out before deploying.
-migrations = true
+# It owns no table: a document number is stored by the application that took it.
+migrations = false

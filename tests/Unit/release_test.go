@@ -8,21 +8,32 @@ import (
 	"testing"
 )
 
-func TestTheManifestFrameworkFloorMatchesGoMod(t *testing.T) {
-	root := packageRoot(t)
-	goMod := readReleaseFile(t, root, "go.mod")
-	manifest := readReleaseFile(t, root, "arandu.mod.toml")
+// TestTheModuleRequiresNothingButHesape holds the one dependency this package
+// takes. It is compiled into other people's builds, so every further require is
+// a download and an audit surface for each of them -- and the framework in
+// particular is the web stack, which nothing that formats a string needs.
+func TestTheModuleRequiresNothingButHesape(t *testing.T) {
+	goMod := readReleaseFile(t, packageRoot(t), "go.mod")
 
-	required := captureReleaseValue(t, goMod,
-		`(?m)^\s*github\.com/arandu-io/framework v([0-9]+\.[0-9]+)\.[0-9]+\s*$`,
-		"Framework version in go.mod")
-	declared := captureReleaseValue(t, manifest,
-		`(?m)^framework = ">= ([0-9]+\.[0-9]+)"$`,
-		"Framework floor in arandu.mod.toml")
-
-	if declared != required {
-		t.Fatalf("manifest Framework floor = %s, want %s from go.mod", declared, required)
+	required := regexp.MustCompile(`(?m)^(?:require\s+|\t)([a-z0-9.\-]+\.[a-z]+/\S+)\s+v\S+(\s*//\s*indirect)?\s*$`).
+		FindAllStringSubmatch(goMod, -1)
+	for _, requirement := range required {
+		if requirement[2] != "" {
+			continue
+		}
+		if requirement[1] != "github.com/arandu-io/hesape" {
+			t.Errorf("go.mod requires %s directly; this package depends on github.com/arandu-io/hesape and nothing else",
+				requirement[1])
+		}
 	}
+}
+
+// TestTheManifestDeclaresAFrameworkFloor keeps the floor an installer reads.
+// It is not derived from go.mod, because the framework is not in it: the floor
+// is the first Framework release built on the Hesape that go.mod requires.
+func TestTheManifestDeclaresAFrameworkFloor(t *testing.T) {
+	manifest := readReleaseFile(t, packageRoot(t), "arandu.mod.toml")
+	captureReleaseValue(t, manifest, `(?m)^framework = ">= ([0-9]+\.[0-9]+)"$`, "Framework floor in arandu.mod.toml")
 }
 
 func TestTheReleaseSkillUsesTheManifestFrameworkFloor(t *testing.T) {
@@ -56,53 +67,6 @@ func releasedChangelog(t *testing.T) string {
 		t.Skip("nothing released yet: this package has no versioned changelog entry")
 	}
 	return body[first[0]:]
-}
-
-// TestEveryActionIsNamedInAReleasedChangelogEntry is the gate that catches a
-// tag pushed without filing what it shipped.
-//
-// An action is added in the same change that adds the capability behind it, so
-// an action still sitting in [Unreleased] means the version that introduced it
-// went out undocumented. It is the cheapest signal of that, and it needs no git
-// history to read.
-func TestEveryActionIsNamedInAReleasedChangelogEntry(t *testing.T) {
-	policy := readReleaseFile(t, packageRoot(t), "policy.go")
-	released := releasedChangelog(t)
-
-	names := regexp.MustCompile(`(?m)^\t([A-Z][A-Za-z]*) security\.Action = `).FindAllStringSubmatch(policy, -1)
-	if len(names) == 0 {
-		t.Fatal("policy.go declares no actions")
-	}
-	for _, name := range names {
-		if !strings.Contains(released, "`"+name[1]+"`") {
-			t.Errorf("no released changelog entry names %s", name[1])
-		}
-	}
-}
-
-// TestEveryMigrationIsNamedInAReleasedChangelogEntry holds the same for schema.
-//
-// A migration is the one thing an operator has to run before a version serves,
-// so a version that shipped one and did not say so is a version that fails at
-// the first request against a column that is not there.
-func TestEveryMigrationIsNamedInAReleasedChangelogEntry(t *testing.T) {
-	module := readReleaseFile(t, packageRoot(t), "module.go")
-	released := releasedChangelog(t)
-
-	ids := regexp.MustCompile(`"([0-9]{8}_[0-9]{4}_[a-z_]+)"`).FindAllStringSubmatch(module, -1)
-	if len(ids) == 0 {
-		t.Fatal("module.go declares no migrations")
-	}
-	seen := map[string]bool{}
-	for _, id := range ids {
-		if seen[id[1]] {
-			continue
-		}
-		seen[id[1]] = true
-		if !strings.Contains(released, id[1]) {
-			t.Errorf("no released changelog entry names migration %s", id[1])
-		}
-	}
 }
 
 // TestEveryChangelogVersionHasUpgradeNotes keeps the two files describing the
