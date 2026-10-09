@@ -4,8 +4,13 @@
 
 # Arandu BR
 
-An Arandu package. It registers its own routes, owns its own table, and decides
-for itself who may reach either.
+The Brazilian values an Arandu application takes from a form and prints on a
+page: the CPF, the CNPJ (numeric and alphanumeric), the CEP, an amount in reais,
+a date, and the federative unit.
+
+It is a library. It registers no route, owns no table and decides no
+authorization, so there is nothing to wire in `bootstrap/app.go`, nothing to
+construct, and no `aru migrate` to run. An application imports it and calls it.
 
 ## Install
 
@@ -13,220 +18,169 @@ for itself who may reach either.
 go get github.com/hyz-is/arandu-br
 ```
 
-## Wire it
+```go
+import br "github.com/hyz-is/arandu-br"
+```
 
-An Arandu application registers a module explicitly. There is no service
-provider, no container and no discovery, so these are the lines to paste into
-`bootstrap/app.go` and there are no others.
+The module requires Hesape and nothing else. `arandu.mod.toml` declares no
+capability: no network, no filesystem, no process, no migration.
 
-The import, with the other module imports:
+## Validate a form
+
+The package registers four rules with `hesape/validation` when it is
+initialized. Name them by their constants:
 
 ```go
-import (
-	br "github.com/hyz-is/arandu-br"
-)
+var StoreCustomer = validation.MustCompile(validation.Rules{
+	"cpf":      "required|" + br.RuleCPF,
+	"cnpj":     "nullable|" + br.RuleCNPJ,
+	"document": "required|" + br.RuleCPFOrCNPJ,
+	"postcode": "required|" + br.RuleCEP,
+})
 ```
 
-The construction, in `Build`, after the session store exists and before
-`k.Register`:
-
-```go
-	brModule, err := br.New(br.Config{}, db, sessions)
-	if err != nil {
-		return App{}, err
-	}
-```
-
-And the registration, inside the `k.Register(...)` call already there:
-
-```go
-		brModule,
-```
-
-Then, once, before the application serves:
-
-```bash
-aru migrate
-```
-
-This package owns a table, which is why the migration step is not optional and
-why `arandu.mod.toml` says `migrations = true`.
-
-## Publish the views
-
-This package carries the markup of its own pages and hands it over instead of
-rendering it from the inside, because a page you cannot edit is a page that says
-the wrong thing in your product.
-
-Look at what would be written, then write it:
-
-```bash
-aru vendor:publish --tag=view
-aru vendor:publish --tag=view --apply
-```
-
-Nothing is written without `--apply`. The preview lists every file as `create`,
-`update`, `unchanged` or `conflict`, and running the command a second time
-writes nothing. A file changed outside its `arandu:begin custom` markers is
-reported as a conflict and left alone; `--force` publishes over one, and even
-then what is inside the markers is carried forward.
-
-The files land under `resources/views/modules/br/`, and from that point
-they are yours. Nothing of this package is compiled beside them, so no view name
-is registered twice and no rule has to decide which of two files won — the
-consequence being that a view of this package that changes later does not reach
-a project that already published it.
-
-Two steps are left to you, and they are left to you because a command that
-edited `bootstrap/app.go` behind your back is a command whose output nobody can
-explain. Compile what was written:
-
-```bash
-aru view:build
-```
-
-and import the directory it wrote into, with the other imports:
-
-```go
-	_ "your/module/path/storage/framework/views/modules/br"
-```
-
-Without that import the views are not in the binary, and the module refuses to
-boot rather than answering the first request that reaches one of them with a
-500. The refusal names the view, the command and the import.
-
-## Configuration
-
-| field | required | meaning |
+| constant | rule | accepts |
 | --- | --- | --- |
-| `Prefix` | no | where the routes are mounted. Defaults to `/br`. |
-| `PageSize` | no | how many records one page answers with. Defaults to 25, refused above 200. |
+| `br.RuleCPF` | `cpf` | a CPF, `00000000000` or `000.000.000-00` |
+| `br.RuleCNPJ` | `cnpj` | a CNPJ, `00000000000000` or `00.000.000/0000-00`, letters allowed in the first twelve positions |
+| `br.RuleCPFOrCNPJ` | `cpf_or_cnpj` | either of the two |
+| `br.RuleCEP` | `cep` | a CEP, `00000000` or `00000-000` |
 
-The zero `Config{}` is a valid configuration. There is no tenant to set: every
-route needs a session, and the tenant of every statement is the one on the
-Grant of whoever is signed in.
+Write the constant, not the word it holds. A rule name exists once it is in the
+catalogue, and a rule set is compiled in a package-level variable, before
+`main`. Naming `br.RuleCPF` imports this package into the file that declares
+the set, and Go initializes an imported package before the variables of the one
+importing it, so the rules are registered before the set is compiled. The word
+`"cpf"` in a package that does not import this one may be compiled first, and
+then the application refuses to boot with an unknown rule.
 
-`New` returns an error rather than starting half-wired, so a setting that
-cannot work fails where it is written instead of on the first request that
-needed it.
+Each rule checks what the matching `Parse` function checks, takes no argument
+(`cpf:anything` refuses every value) and only a string: a CPF sent as a JSON
+number has already lost its leading zeros. A blank value is left to `required`
+or `nullable`.
 
-## Routes
+A failure reads `is not a valid CPF` (`CNPJ`, `CPF or CNPJ`, `CEP`). An
+application that speaks Portuguese names its own sentence under
+`validation.cpf`, `validation.cnpj`, `validation.cpf_or_cnpj` and
+`validation.cep` in its translations, which `hesape/validation` reads before
+the default.
 
-| method | path | name |
-| --- | --- | --- |
-| `GET` | `/br` | `br.index` |
-| `GET` | `/br/{id}` | `br.show` |
-| `POST` | `/br` | `br.store` |
-
-Every one of them sits behind `RequireAuth`: a visitor with no session is sent
-to `/auth/login`, and the handler of a request that has one reads who is asking
-with `ctx.User()`. Behind the guard, every route is refused until the policy is
-opened. That is the state the package ships in, and it is deliberate.
-
-A handler returns the error the service returned, and the router answers it: a
-policy refusal is 403, a record that is not there is 404, and a rejected input
-goes back where it came from with the messages in the flash. A request that asks
-for JSON gets the same statuses as `application/problem+json` documents, and a
-rejected input as a 422 with the messages keyed by field. No handler maps an
-error to a status itself.
-
-## Open the policy
-
-`policy.go` denies every action and has no branch that allows one. Open what
-this package needs, one action at a time, inside the custom block:
+## Take a value in
 
 ```go
-	// arandu:begin custom
-	if a == BrView && (s.ID == record.ID || s.HasRole("admin")) {
-		return nil
-	}
-	// arandu:end custom
+cpf, err := br.ParseCPF(in.String("cpf"))    // eleven digits, bare
+cnpj, err := br.ParseCNPJ(in.String("cnpj")) // fourteen characters, bare, letters in capitals
+cep, err := br.ParseCEP(in.String("postcode"))
 ```
 
-What is not written there stays closed, including every action added later.
+Each `Parse` function returns the bare spelling, which is the one to store, or
+`ErrInvalidCPF`, `ErrInvalidCNPJ` or `ErrInvalidCEP`. `ValidCPF`, `ValidCNPJ`
+and `ValidCEP` answer the same question with a `bool`.
 
-## The data path
+What is accepted is deliberately narrow: the value bare, or in its one
+conventional punctuation, and nothing else. No other separator, no separator
+out of place, no whitespace around it — a form that trimmed or re-punctuated
+input would accept a value the person did not type.
 
-`Br` embeds `model.Model`, and `brTable`, beside it in `model.go`,
-declares its table once. `aru model:build` generates `BrQuery.go` from
-it: `Brs(db)`, which starts a `*BrQuery`, and `BrCollection`.
-The file is committed and never edited by hand; regenerate it after changing
-the entity, and `aru model:build --check` fails when it is out of date.
+- **CPF** — the two check digits the Receita Federal computes. The eleven
+  repetitions of one digit compute too and belong to nobody, so they are
+  refused by name.
+- **CNPJ** — the alphanumeric scheme: twelve digits or capital letters, each
+  worth its ASCII code minus 48, then two numeric check digits. The numeric CNPJ
+  is the all-digit case and is checked by the same computation. A lower-case
+  letter is read as its capital. Fourteen repetitions of one character are
+  refused.
+- **CEP** — eight digits, and not below `01000-000`, where the Correios ranges
+  begin. There is no check digit, so a CEP that passes may still address
+  nothing.
 
-`BrService` owns `*data.DB` and follows
-`validate -> security.Authorize -> Grant -> Model terminal`; handlers never hold
-the database or start a query. Every query starts at `Brs(s.db)`: the
-constructor returns one mutable query, so a second chain begun from a value held
-in a variable would carry the clauses of the first.
+None of them says whether a document was issued, is regular or exists: that is
+a question for the Receita Federal or the Correios, and this package makes no
+call.
 
-Create builds the row with `Brs(s.db).New()` and writes `TenantID` from
-`data.Tenant(g)`. Find authorizes before reading and again against the row it
-found. List authorizes before building its scoped, allowlisted query. The table
-keeps its default `tenant_id` scope on every terminal.
+`CPFCheckDigits` and `CNPJCheckDigits` compute the check digits of a base, which
+is what a seeder or a factory needs to write a valid document without borrowing
+somebody's.
 
-Terminals return `*Br` and `[]*Br`. Keep those pointers: a copy of a
-row keeps the model of the original, and the model refuses to write through it
-with `model.ErrUnwired`. `Resource` and `Collection` are explicit response
-snapshots and do not expose tenant or Model internals.
+## Print a value
 
-The rules of the entity itself — an invariant, a derived value, a transition
-such as `Rename` guarded by `CanRename` — go in the custom block of `model.go`,
-as pure methods: no database, no network, no clock read inside, no Grant. The
-service orchestrates: it validates, authorizes, calls those rules and saves
-with the Grant.
+```go
+br.CPF("11122233344")      // "111.222.333-44", check digits or not
+br.CNPJ("12abc34501de35")  // "12.ABC.345/01DE-35"
+br.CEP("70040010")         // "70040-010"
+br.BRL(123456)             // "R$ 1.234,56"
+br.BRL(-99)                // "-R$ 0,99"
+br.Date(t.In(saoPaulo))    // "31/12/2026"
+```
 
-There is no CRUD Repository. Add one only for a complex query, read model,
-report, export or raw SQL contract that the generated query cannot express.
+`CPF`, `CNPJ` and `CEP` punctuate a value of the right shape and return
+anything else unchanged: they format and do not validate, so a page that prints
+a stored value shows what is stored.
+
+`BRL` takes centavos as an `int64` — an amount that has to add up is held as an
+integer — and writes every one, the most negative included. It writes the same
+string as `number.CurrencyFromCents(cents, "BRL")` with the process-wide locale
+set to `pt-BR`, and depends on no process-wide setting.
+
+`Date` writes the day `t` holds in its own location. A time read from the
+database is usually in UTC, where a late evening in Brasília is already the next
+day, so convert it with `t.In(location)` first.
+
+## The federative units
+
+`br.UF` is the closed set of the twenty-seven units, shaped like an enum `aru
+make:enum` writes:
+
+```go
+br.UFSP.String()  // "SP"
+br.UFSP.Label()   // "São Paulo"
+uf, err := br.ParseUF(in.String("uf")) // exact code, in capitals, or ErrInvalidUF
+```
+
+`br.UFValues()` lists them in the alphabetical order of their names. The type
+satisfies `enum.Enum`, so the rest of the collection reads it without a second
+list:
+
+```go
+enum.Options(br.UFValues()...)        // the options of a select
+validation.EnumOf(br.UFValues()...)   // the rule
+```
+
+As a column, `Value` and `Scan` refuse a code outside the set.
+
+## What this package does not do
+
+| reached for | why not |
+| --- | --- |
+| `New`, a `Module`, a line in `k.Register` | there is nothing to register: no route, no table, no policy |
+| a lookup at the Receita Federal or the Correios | a validator that calls out is a validator that fails when the network does, and the manifest declares `network = false` |
+| accepting `123.456.789 09`, ` 01000-000` or full-width digits | the caller would store a value the person did not type |
+| a `float64` amount | `BRL` takes centavos; a float has already rounded |
+| reading the process locale | the same call would print differently depending on what another part of the application set |
 
 ## Layout
 
 ```
-module.go         registration, routes, handlers and migrations
-config.go         what the application passes in
-model.go          the entity, its table and its own rules, and what it may answer with
-BrQuery.go  the query aru model:build generates from model.go
-policy.go         who may do what
-service.go        the use cases, and Model access after authorization
-views.go          the files the application takes ownership of
+cpf.go, cnpj.go, cep.go   parsing, check digits and punctuation
+shape.go                  the masks the three share
+rules.go                  the hesape/validation rules
+money.go, date.go         BRL and Date
+uf.go                     the UF enum
 ```
-
-## What is already correct, and has to stay that way
-
-**The policy denies everything.** There is no permit-all branch to delete
-later. The Service calls `security.Authorize` before its first `Brs(db)`
-reach, and every Model terminal requires the Grant that call produced.
-
-**Authorization precedes the Model.** The package audit checks that order in
-every exported Service method. A Model terminal enforces tenant scope; the
-preceding Policy call decides whether the action itself is allowed.
-
-**The tenant comes from `data.Tenant(g)`.** Never from the path, the body, the
-query string or a header. The value on the Grant came from the session; a value
-that arrived with the request is a value the caller chose.
-
-**Who is asking comes from the guard.** `RequireAuth` loads the session once and
-puts the subject on the request; nothing in the module loads it again.
-
-**`arandu.mod.toml` declares what the package does** — network, filesystem,
-exec, migrations — and the suite compares the declaration against what the code
-*calls*, not against what it imports: `net/http` is imported by everything with
-a route and says nothing. A package that says it makes no outbound calls and
-then opens one fails its own tests, and that is the only place the comparison
-happens. `aru doctor` audits the application it is run inside and never loads a
-dependency, so nothing audits an installed package except the package itself.
 
 ## Tests
 
 ```bash
-go test -race ./...
+GOWORK=off go test -race ./...
 ```
 
-The denial suite constructs the Service with a nil database, so even building
-`Brs(nil)` would panic. The structural twin reads the allowed path and
-rejects any Service method that reaches the Model before `Authorize`, and any
-handler that loads the session or picks a status itself. The route tests drive
-the module with no session, with a signed-in subject and with a rejected input,
-on that same handle over no database.
+Every valid document in the suite is generated from a fixed seed by an oracle
+written apart from the package, from the Receita Federal's weight tables; none
+is copied from anywhere. The parsers are fuzzed against that oracle:
+
+```bash
+GOWORK=off go test -run='^$' -fuzz='^FuzzParseCNPJ$' -fuzztime=30s ./tests/Unit
+```
 
 ## Licence
 

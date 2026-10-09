@@ -8,6 +8,7 @@ Run the four gates. They are what CI runs, and a pull request that fails one of
 them fails for everybody who pulls after it.
 
 ```bash
+export GOWORK=off
 gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go')
 go build ./...
 go vet ./...
@@ -18,53 +19,39 @@ The two filters on `gofmt` are not preference. `gofmt` is the only tool in the
 chain that ignores build tags, so it reads files the compiler deliberately
 excludes; `testdata/` holds fixtures that are invalid on purpose.
 
-A change to the entity in `model.go` is followed by `aru model:build`, which
-rewrites `BrQuery.go`, and the regenerated file goes in the same commit.
-`aru model:build --check` exits 1 when the committed file is missing, stale or
-edited by hand.
+A change to a parser gets a fuzz run too, of the target that covers it:
+
+```bash
+go test -run='^$' -fuzz='^FuzzParseCNPJ$' -fuzztime=30s ./tests/Unit
+```
 
 ## What a change has to keep true
 
-Four properties are the reason this package is what it is. A change that breaks
-one of them will not be merged, whatever else it improves.
+1. **The oracle decides.** The tests carry a second implementation of every
+   check, written from the Receita Federal's weight tables rather than from
+   this package. A change the oracle disagrees with is not merged by changing
+   the oracle.
+2. **A rule and its Parse function are one check.** The rules in `rules.go`
+   call `ValidCPF`, `ValidCNPJ` and `ValidCEP`; they check nothing of their own.
+3. **What is accepted stays narrow.** The value bare, or in its one
+   conventional punctuation. Widening it to another separator, to whitespace or
+   to another spelling is a change to what every installer stores, and it needs
+   an argument in the pull request.
+4. **This stays a library.** No route, no table, no policy, no `Module`, no
+   import beyond the standard library, `hesape/validation` and `hesape/enum`,
+   and an `init` that only registers rules. `TestThePackageIsALibrary` holds
+   all of it.
+5. **`arandu.mod.toml` matches the code.** Adding an outbound call, a file
+   access or a process means declaring it there in the same commit.
 
-1. **The policy denies by default.** No branch allows every action, and none is
-   added. Opening an action means writing the rule that opens it.
-2. **Every Service method authorizes before reaching the Model.** The Grant is
-   then required by the Model terminal; constructing `Brs(db)` first is
-   already the wrong order and the structural audit rejects it.
-3. **The tenant comes from `data.Tenant(g)`.** Not from the path, the body, the
-   query string or a header, on any code path, including the read paths.
-4. **`arandu.mod.toml` matches the code.** Adding an outbound call, a file
-   write or a process means declaring it there in the same commit.
-
-CRUD stays on `Brs(db)` and its generated query. Add a Repository only for
-a specialized complex query, read model, report, export or raw SQL contract; a
-wrapper around `Find`, `Get`, `Save` or `Delete` is a second data path.
-
-Every query starts at `Brs(s.db)`. The constructor returns one mutable
-query, so a second chain begun from a value held in a variable carries the
-clauses of the first -- and that compiles.
-
-Model-backed entities stay pointers. A copy of `Br` keeps the model of the
-row it was copied from, and the model refuses to write through the copy with
-`model.ErrUnwired`. Response resources are the deliberate snapshot boundary;
-Service results are not.
-
-The rules of the entity itself go in the custom block of `model.go`, as pure
-methods. The Service orchestrates, and holds no rule the entity could hold.
-
-Handlers read who is asking with `ctx.User()`, which `RequireAuth` filled, and
-return the error the Service returned for the router to answer. A handler that
-loads the session or maps an error to a status fails
-`TestHandlersLeaveTheSubjectAndTheStatusToTheFramework`.
+No real person's document goes into a test, a comment or a document. Generate
+one with the oracle in `tests/Unit/documents_test.go`.
 
 ## Style
 
 Everything in the source is in English: identifiers, doc comments, internal
-comments, error messages, log messages, and the names and messages of tests.
-`pkg.go.dev` publishes the doc comments, and its readers are users of this
-package.
+comments, error messages, and the names and messages of tests. `pkg.go.dev`
+publishes the doc comments, and its readers are users of this package.
 
 Every exported symbol carries a doc comment saying what it does. The comment
 documents the symbol and nothing else: no dates, no issue numbers, no

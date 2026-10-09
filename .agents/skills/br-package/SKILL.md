@@ -1,6 +1,6 @@
 ---
 name: br-package
-description: Install, wire and use the Arandu BR package (Go, Arandu) in an application. Use when the request is to "install Arandu BR", "add br to the app", "go get github.com/hyz-is/arandu-br", "wire it into bootstrap/app.go", "register the module", "use the br routes", "everything under /br returns 403", "403 forbidden from br", "it redirects to /auth/login", "the table does not exist", "no such table", "change where it is mounted", "let admins read it", or when a project's go.mod already requires github.com/hyz-is/arandu-br. Covers the three lines of wiring and where each one goes, the Config fields, none of them required, the routes, their names and the session they need, why the policy refuses everything until somebody opens it, and the migration step that is not optional.
+description: Validate and format Brazilian values in an Arandu application with the Arandu BR package (Go, github.com/hyz-is/arandu-br). Use when the request is to "validate a CPF", "validate a CNPJ", "accept CPF or CNPJ", "the alphanumeric CNPJ", "validate a CEP", "format a CPF", "mask the CNPJ", "format money in reais", "R$ 1.234,56", "format the date as dd/mm/yyyy", "list the states", "a select of UFs", "go get github.com/hyz-is/arandu-br", "unknown rule cpf", "rule cpf is already in the catalogue", "the CPF with spaces is refused", or when the application has its own NormalizeCPF, ValidCPF, FormatCNPJ or BRL formatter, or when a project's go.mod already requires github.com/hyz-is/arandu-br. Covers the four validation rules and why they are named by constant, the Parse functions and what they accept, storing the bare spelling, the formatters, BRL and Date, the UF enum, and the symptoms that mean something is wired wrong.
 license: MIT
 metadata:
   audience: app
@@ -8,10 +8,11 @@ metadata:
 
 # Using Arandu BR
 
-An Arandu package with one entity, its own table, its own routes and its own
-policy. It is registered by hand — there is no service provider, no container
-and no discovery, so if a line is not written in the application, it does not
-happen.
+A library of Brazilian values: the CPF, the CNPJ (numeric and alphanumeric), the
+CEP, amounts in reais, dates, and the twenty-seven federative units. It has no
+route, no table and no policy, so nothing about it goes in `bootstrap/app.go`:
+there is no `New`, no line in `k.Register` and no `aru migrate`. Import it and
+call it.
 
 ## Install
 
@@ -19,166 +20,149 @@ happen.
 go get github.com/hyz-is/arandu-br
 ```
 
-## The three lines of wiring, and where each one goes
-
-All three are in `bootstrap/app.go`. Nothing else in the application changes,
-and `aru make:module` does not edit this file for you.
-
-The import, with the other module imports:
-
 ```go
-import (
-	br "github.com/hyz-is/arandu-br"
-)
+import br "github.com/hyz-is/arandu-br"
 ```
 
-The construction, in `Build`, after the session store exists and before
-`k.Register`:
+## If the application already does this itself
 
-```go
-	brModule, err := br.New(br.Config{}, db, sessions)
-	if err != nil {
-		return App{}, err
-	}
-```
+Replace it; do not wrap it. A second CPF check in the application is the one
+that drifts, and `aru doctor` reports a reimplemented helper.
 
-And the registration, inside the `k.Register(...)` call already there:
-
-```go
-		brModule,
-```
-
-`New` returns an error rather than starting half-wired. It refuses a
-configuration that cannot work, a nil database handle and a nil session store,
-so a wiring mistake costs one restart instead of arriving as a nil dereference
-on the first request that needed it.
-
-## Then run the migrations
-
-```bash
-aru migrate
-```
-
-Not optional, and not automatic. The package owns a table, which is why its
-`arandu.mod.toml` declares `migrations = true` — that declaration is how an
-installer finds out before deploying rather than from the first request.
-
-`aru migrate` is a step in the pipeline and never a call at the start of the
-process: with N replicas, N migrations race each other.
-
-**Symptom to recognise:** `no such table`, or `relation does not exist`, from a
-route that authorized correctly. The migration has not run.
-
-## Configuration
-
-| field | required | meaning |
-| --- | --- | --- |
-| `Prefix` | no | where the routes are mounted. Defaults to `/br` |
-| `PageSize` | no | how many records one page answers with. Defaults to 25, refused above 200 |
-
-`br.Config{}` is a complete configuration. There is no tenant to pass:
-every route needs a session, and the tenant of every statement comes from
-`data.Tenant(g)`, off the Grant of whoever is signed in. Passing a value the
-request named — a path segment, a header, a subdomain read off the URL — is what
-`TestNoTenantIsReadOutOfTheRequest` fails on in the package. In an application
-the same mistake is `aru doctor`'s `tenant-from-request`; in a package nothing
-but the package's own suite looks.
-
-`PageSize` above 200 is an error from `New`, not a silent 200. A number somebody
-wrote and did not get is worse than a number somebody wrote and was told about.
-
-## Routes
-
-| method | path | name |
-| --- | --- | --- |
-| `GET` | `/br` | `br.index` |
-| `GET` | `/br/{id}` | `br.show` |
-| `POST` | `/br` | `br.store` |
-
-Every route sits behind `RequireAuth`, mounted by the package itself. A request
-with no session is sent to `/auth/login` — 303, or `HX-Redirect` for an htmx
-request — and comes back to the address it asked for after signing in. That is
-the sign-in screen the starter kit publishes; an application without one sees
-a 404 there.
-
-**Symptom to recognise:** every route of the package redirects to
-`/auth/login`. Nobody is signed in on that request: the session cookie did not
-arrive, or the session store passed to `New` is not the one the application
-signs people in with.
-
-Build URLs from the names, never by writing the path a second time. `aru
-route:list` shows them grouped by module. Under a custom `Prefix` the paths move
-and the names do not.
-
-`GET /br` answers `{"data": {"items": [...]}}`, and adds
-`"next_cursor"` beside `data` when a further page exists. Pass it back as
-`?cursor=`. A page shorter than `PageSize` is the last one and carries no
-cursor.
-
-`TenantID` is not in any response. That is deliberate: it names a customer's
-identifier and the response is a declared list of fields rather than the entity.
-
-## Every route refuses everybody, until you open the policy
-
-This is the state the package ships in, and it is not a bug to work around.
-`BrPolicy` denies every action and has no branch that allows one:
-
-```
-403 Forbidden
-```
-
-is what a correctly installed, correctly migrated, correctly wired package
-answers to an administrator who is signed in, on day one.
-
-Opening an action means writing the rule that opens it, in the package's
-`policy.go`, inside the block that says so:
-
-```go
-	// arandu:begin custom
-	if a == BrView && (s.ID == record.ID || s.HasRole("admin")) {
-		return nil
-	}
-	// arandu:end custom
-```
-
-What is not written there stays closed, including every action added later.
-There are five actions — `BrView`, `BrList`, `BrCreate`,
-`BrUpdate`, `BrDelete` — and opening one opens exactly one.
-
-**Do not open it from the application.** There is no hook, no override and no
-config flag for the policy, and adding one would be a second place where
-authorization is decided. If the rules this application needs are not the rules
-the package ships, the change belongs in the package.
-
-## What the answers mean
-
-| status | what happened |
+| the application has | it becomes |
 | --- | --- |
-| `303` to `/auth/login` | there is no session on the request |
-| `403` | the policy refused, or no rule allows the action yet |
-| `404` | no row with that id in this tenant |
-| `303` back to the page the request came from | the input was rejected; the messages and what was typed are in the flash |
-| `422` `application/problem+json` | the input was rejected and the request asked for JSON; the messages are in `errors`, keyed by field |
+| `NormalizeCPF`, `ValidCPF`, `FormatCPF` | `br.ParseCPF`, `br.ValidCPF`, `br.CPF` |
+| the same for the CNPJ and the CEP | `br.ParseCNPJ`, `br.ValidCNPJ`, `br.CNPJ`; `br.ParseCEP`, `br.ValidCEP`, `br.CEP` |
+| a hand check before `ctx.Validate` | a rule in the rule set, named by its constant |
+| a BRL formatter, or `number.WithLocale("pt-BR", ...)` around a currency call | `br.BRL(cents)` |
+| a map or a slice of the states | `br.UFValues()` and the `br.UF` type |
 
-A request that asks for JSON (an `Accept` naming `application/json`, or an XHR
-that is not htmx) gets the 403 and the 404 as problem documents too. The
-sign-in redirect is the same for every client.
+Read what the local version accepted before switching: see *What is accepted*
+below.
 
-The package does not choose these: its handlers return what the service
-returned, and the framework's router answers it. A refusal carries no detail
-beyond the status and its standard sentence. Telling a client why a policy said
-no tells it what exists and what does not, one request at a time. The reason is
-in the log.
+## Validate a form
 
-Anything else is a 500 and the framework's error page in development. The
-package returns unexpected errors rather than swallowing them, so a route that
-answers 200 with an empty body is not something it does.
+The package registers `cpf`, `cnpj`, `cpf_or_cnpj` and `cep` with
+`hesape/validation` when it is initialized. A rule set names them by constant,
+in the package-level variable where every rule set lives:
+
+```go
+var StoreCustomer = validation.MustCompile(validation.Rules{
+	"document": "required|" + br.RuleCPFOrCNPJ,
+	"postcode": "required|" + br.RuleCEP,
+})
+```
+
+**Write the constant, never the word.** A rule set is compiled before `main`,
+and a rule exists only once this package's `init` has run. Naming
+`br.RuleCPFOrCNPJ` imports the package into the file that declares the set, and
+Go runs an imported package's `init` before the importer's variables. The bare
+word `"cpf_or_cnpj"`, in a package that does not import this one, may be
+compiled first.
+
+**Symptom to recognise:** the application panics at boot naming an unknown rule
+`cpf`, `cnpj`, `cpf_or_cnpj` or `cep`. The rule set spells the word; spell the
+constant.
+
+**Symptom to recognise:** `validation: rule cpf is already in the catalogue`.
+The application registers its own `cpf` rule with `validation.Extend`. Delete
+it: this package's is the one.
+
+Each rule takes no argument — `cpf:strict` refuses every value — and only a
+string, so a document sent as a JSON number fails. A blank value is not
+checked; write `required` or `nullable` beside it.
+
+The default sentences are English: `is not a valid CPF`, `is not a valid
+CNPJ`, `is not a valid CPF or CNPJ`, `is not a valid CEP`. Put the
+application's own under `validation.cpf`, `validation.cnpj`,
+`validation.cpf_or_cnpj` and `validation.cep` in its translations.
+
+## Take the value in, and store it bare
+
+```go
+in, err := ctx.Validate(requests.StoreCustomer)
+if err != nil {
+	return err
+}
+document, err := br.ParseCPF(in.String("document"))
+```
+
+`ParseCPF`, `ParseCNPJ` and `ParseCEP` return the bare spelling — eleven
+digits, fourteen characters with letters in capitals, eight digits — or
+`br.ErrInvalidCPF`, `br.ErrInvalidCNPJ`, `br.ErrInvalidCEP`. Store that
+spelling. A column holding some values punctuated and some bare cannot be
+searched for either, and a unique index on it does not stop the same document
+twice.
+
+A CNPJ column has to hold letters: the alphanumeric CNPJ carries them in its
+first twelve positions. A column or a check that assumed digits only refuses
+CNPJs the Receita Federal issues.
+
+## What is accepted
+
+The value bare, or in its one conventional punctuation, and nothing else:
+
+| document | bare | punctuated |
+| --- | --- | --- |
+| CPF | `00000000000` | `000.000.000-00` |
+| CNPJ | `00000000000000` | `00.000.000/0000-00`, letters in the first twelve |
+| CEP | `00000000` | `00000-000` |
+
+Not whitespace around it, not another separator, not a separator out of place.
+
+**Symptom to recognise:** a document pasted with a trailing space is refused.
+That is deliberate. If the form should forgive it, trim in the request before
+validating, where the application decides it, rather than widening the check
+for everybody.
+
+The CPF and the CNPJ are checked against their check digits; a repetition of
+one character is refused. A CEP has no check digit, so only a code below
+`01000-000` is refused for its value. None of the three says whether the
+document was issued or the address exists — the package makes no call.
+
+A seeder or a factory that needs a valid document generates one:
+`br.CPFCheckDigits(base)` and `br.CNPJCheckDigits(base)` return the check
+digits for a nine- or twelve-character base. Never seed a real person's number.
+
+## Print a value
+
+| call | prints |
+| --- | --- |
+| `br.CPF(stored)` | `000.000.000-00` |
+| `br.CNPJ(stored)` | `00.000.000/0000-00` |
+| `br.CEP(stored)` | `00000-000` |
+| `br.BRL(cents)` | `R$ 1.234,56`, and `-R$ 1.234,56` for a negative amount |
+| `br.Date(t.In(location))` | `31/12/2026` |
+
+The three document formatters return what they cannot punctuate unchanged; they
+do not validate. `BRL` takes the amount in centavos as an `int64`, never a
+float, and reads no process-wide locale. `Date` prints the day in the location
+the time carries, so convert a UTC time to the reader's location first, or a
+late evening prints as the next day.
+
+## The federative units
+
+```go
+type Address struct {
+	State br.UF // a column: Value and Scan refuse a code outside the set
+}
+
+uf, err := br.ParseUF(in.String("state"))  // "SP", exactly, or br.ErrInvalidUF
+enum.Options(br.UFValues()...)             // the options of a select: SP / São Paulo
+validation.EnumOf(br.UFValues()...)        // the rule object
+```
+
+In a rule string, the cases come off the type rather than being written again:
+
+```go
+"state": "required|enum:" + strings.Join(enum.Names(br.UFValues()...), ","),
+```
 
 ## Reporting a problem
 
-Issues and pull requests go to the repository the module path names,
-`github.com/hyz-is/arandu-br`, which belongs to `hyz-is`. A vulnerability goes to the
-private advisory form named in that repository's `SECURITY.md`, and never into
-an issue.
+Issues and pull requests go to `github.com/hyz-is/arandu-br`. A vulnerability —
+a value accepted that is not what the documentation says is accepted — goes to
+the private advisory form named in that repository's `SECURITY.md`, never into
+an issue, and never with a real person's document in it.
 
 MIT licensed. Copyright Paulo R. Lima.

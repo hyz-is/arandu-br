@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -311,4 +312,91 @@ func packageRoot(t *testing.T) string {
 		t.Fatal("finding package root")
 	}
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
+}
+
+// TestTheGuidesTeachALibrary keeps the documents an installer and a maintainer
+// read in step with the package that exists. The template this package came
+// from taught a module that is constructed, registered and migrated, and a
+// guide that still taught any of it would send the next reader to write the
+// wiring this package refused.
+func TestTheGuidesTeachALibrary(t *testing.T) {
+	t.Parallel()
+
+	root := packageRoot(t)
+	guides := map[string][]string{
+		"README.md": {
+			"go get github.com/hyz-is/arandu-br", "br.RuleCPF", "br.ParseCPF", "br.BRL(", "br.UFValues()",
+		},
+		"AGENTS.md": {"RuleCPF", "validation.Extend", "TestThePackageIsALibrary"},
+		".agents/skills/br-package/SKILL.md": {
+			"go get github.com/hyz-is/arandu-br", "br.RuleCPFOrCNPJ", "Write the constant, never the word",
+		},
+		".agents/skills/br-release/SKILL.md": {"FuzzParseCNPJ", "TestTheModuleRequiresNothingButHesape"},
+		".agents/skills/README.md":           {"br-package", "br-release", "br-vault-notes"},
+	}
+	retired := []string{
+		"br.New(", "brModule", "k.Register(", "br.Config{", "BrService", "BrPolicy", "Brs(",
+		"model:build", "vendor:publish", "/auth/login",
+	}
+	bootstrapFile := regexp.MustCompile(`bootstrap/[A-Za-z0-9_.-]+\.go`)
+
+	for path, required := range guides {
+		body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if err != nil {
+			t.Fatalf("reading %s: %v", path, err)
+		}
+		text := string(body)
+		for _, want := range required {
+			if !strings.Contains(text, want) {
+				t.Errorf("%s does not teach %q", path, want)
+			}
+		}
+		for _, stale := range retired {
+			if strings.Contains(text, stale) {
+				t.Errorf("%s still teaches the template's module through %q", path, stale)
+			}
+		}
+		for _, referenced := range bootstrapFile.FindAllString(text, -1) {
+			if referenced != "bootstrap/app.go" {
+				t.Errorf("%s introduces a second composition file %s", path, referenced)
+			}
+		}
+	}
+}
+
+// TestEverySkillIsNamedAfterItsDirectory holds the one line of a skill that a
+// tool reads as data: a skill whose frontmatter name and directory differ is
+// skipped, and nothing says so. It also holds which skill an application
+// receives -- the package skill, and no other.
+func TestEverySkillIsNamedAfterItsDirectory(t *testing.T) {
+	t.Parallel()
+
+	dir := filepath.Join(packageRoot(t), ".agents", "skills")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("reading the skills: %v", err)
+	}
+	found := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		found++
+		body, err := os.ReadFile(filepath.Join(dir, entry.Name(), "SKILL.md"))
+		if err != nil {
+			t.Errorf("%s has no SKILL.md: %v", entry.Name(), err)
+			continue
+		}
+		text := string(body)
+		if !strings.HasPrefix(text, "---\nname: "+entry.Name()+"\n") {
+			t.Errorf("%s/SKILL.md does not open with name: %s", entry.Name(), entry.Name())
+		}
+		forApplications := strings.Contains(text, "\nmetadata:\n  audience: app\n")
+		if want := entry.Name() == "br-package"; forApplications != want {
+			t.Errorf("%s: audience app = %v, want %v", entry.Name(), forApplications, want)
+		}
+	}
+	if found != 3 {
+		t.Errorf("found %d skills, want br-package, br-release and br-vault-notes", found)
+	}
 }

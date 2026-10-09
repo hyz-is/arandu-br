@@ -204,3 +204,47 @@ func captureReleaseValue(t *testing.T, body, pattern, label string) string {
 	}
 	return match[1]
 }
+
+// currentVersion is the release this working tree is preparing.
+//
+// It is written here and compared against the changelog rather than read out of
+// it: a test that took the number from the file it checks would pass on a file
+// that lost its heading.
+const currentVersion = "0.1.0"
+
+// TestTheChangelogAndTheUpgradeGuideAgreeOnTheVersion keeps the two pages a
+// person reads before upgrading from naming different releases, and the
+// release workflow from finding no notes to publish.
+func TestTheChangelogAndTheUpgradeGuideAgreeOnTheVersion(t *testing.T) {
+	root := packageRoot(t)
+	changelog := readReleaseFile(t, root, "CHANGELOG.md")
+	upgrade := readReleaseFile(t, root, "UPGRADE.md")
+
+	if got := strings.Count(changelog, "## ["+currentVersion+"] - "); got != 1 {
+		t.Fatalf("v%s changelog headings = %d, want exactly one pre-versioned entry", currentVersion, got)
+	}
+	if !regexp.MustCompile(`(?m)^## v` + regexp.QuoteMeta(currentVersion) + `$`).MatchString(upgrade) {
+		t.Fatalf("UPGRADE.md has no v%s entry", currentVersion)
+	}
+}
+
+// TestEveryRuleIsNamedInAReleasedChangelogEntry is the gate that catches a tag
+// pushed without filing what it shipped. A rule name is what an application
+// writes into a rule set, so a rule that went out undocumented is one nobody
+// knows to use -- and one whose rename nobody is warned about.
+func TestEveryRuleIsNamedInAReleasedChangelogEntry(t *testing.T) {
+	rules := readReleaseFile(t, packageRoot(t), "rules.go")
+	released := releasedChangelog(t)
+
+	names := regexp.MustCompile(`(?m)^\t(Rule[A-Za-z]+) = "([a-z_]+)"$`).FindAllStringSubmatch(rules, -1)
+	if len(names) != 4 {
+		t.Fatalf("rules.go declares %d rule constants, want the four the package registers", len(names))
+	}
+	for _, name := range names {
+		for _, spelling := range []string{"`" + name[1] + "`", "`" + name[2] + "`"} {
+			if !strings.Contains(released, spelling) {
+				t.Errorf("no released changelog entry names %s", spelling)
+			}
+		}
+	}
+}

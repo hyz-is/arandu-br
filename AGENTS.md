@@ -1,12 +1,14 @@
 # Working on Arandu BR
 
-This is an Arandu package: one entity with an embedded Hesape Model, one policy
-that decides about it, one service that owns the database handle, and the routes
-that reach them.
-It is a Go module somebody `go get`s and registers by hand in their own
-`bootstrap/app.go`, which is the whole difference from working in an
-application. There is no service provider, no container and no discovery — if a
-line of wiring is not written in the installer's repository, it does not happen.
+This is an Arandu package that validates and formats Brazilian values: the CPF,
+the CNPJ (numeric and alphanumeric), the CEP, amounts in reais, dates, and the
+federative unit. It is a Go module somebody `go get`s and imports.
+
+It began as the package skeleton, configured as `hyz-is/br`, and the HTTP
+module the template ships was removed on purpose: there is no entity, no table,
+no migration, no policy, no route, no view and no `Module` to register. What a
+skeleton package wires in `bootstrap/app.go`, this one does not need, and
+nothing here should grow back into it.
 
 Read `.agents/skills/` before writing code. Each skill is a procedure, and the
 one you need is named by the situation you are in.
@@ -23,158 +25,90 @@ go vet ./...
 go test -race ./...
 ```
 
-`GOWORK=off` is not borrowed from somewhere else, and here it is not a
-preference either. This checkout may sit beside a Go workspace that lists the
-framework repositories and does not list this one; when it does, every command
-above fails before it compiles anything:
+`GOWORK=off` is not a preference. This checkout may sit beside a Go workspace
+that lists the framework repositories and does not list this one; when it does,
+every command above fails before it compiles anything:
 
 ```
 pattern ./...: directory prefix . does not contain modules listed in go.work
 or their selected dependencies
 ```
 
-With the workspace off, the module resolves the framework version in `go.mod` —
+With the workspace off, the module resolves the Hesape version in `go.mod` —
 which is what CI compiles against, and what somebody's `go get` will get.
 
-Both filters on `gofmt` are load-bearing in the toolchain even where this
-repository has nothing for them to skip: `gofmt` is the only tool in the chain
-that ignores build tags, and `testdata/` is where a fixture is allowed to be
-invalid on purpose.
+Before a release, give each parser a short fuzz run as well. The seeds run on
+every `go test`; the run is what looks past them:
 
-`aru doctor` is not one of the gates, and running it here costs a minute and
-answers nothing:
-
-```
-this is not an Arandu project: no go.mod, main.go and arandu.toml together.
-Run it from inside a project, or create one with `aru new`
+```sh
+go test -run='^$' -fuzz='^FuzzParseCPF$' -fuzztime=30s ./tests/Unit
+go test -run='^$' -fuzz='^FuzzParseCNPJ$' -fuzztime=30s ./tests/Unit
+go test -run='^$' -fuzz='^FuzzParseCEP$' -fuzztime=30s ./tests/Unit
+go test -run='^$' -fuzz='^FuzzBRLAgreesWithHesapeUnderPtBR$' -fuzztime=30s ./tests/Unit
 ```
 
-It exits 1. It reads applications, and this is a library.
-
-It does not read this one after it is installed either, and that is why
-`tests/Unit/audit_test.go` exists. The doctor walks the application's own tree,
-skips `vendor/`, and opens the one `arandu.mod.toml` at its root; it never loads
-a dependency. So `tenant-from-request`, `system-grant-without-tenant` and
-`permission-not-declared` never see a line of an installed package, and whatever
-this one must prove about itself it proves in its own suite or nowhere.
+`aru doctor` is not one of the gates. It reads applications, and exits 1 here.
+It does not read this package after it is installed either, which is why
+`tests/Unit/audit_test.go` compares `arandu.mod.toml` with what the code calls.
 
 ## What this repository holds
 
 | | measured with |
 | --- | --- |
-| 7 Go files, one per role and one generated, all in one package at the root | `grep -l '^package br' *.go` |
-| 6 test files, 43 tests | `find tests -name '*_test.go'` · `go test -count=1 ./... -v \| grep -c '^--- PASS'` |
-| 3 routes | `grep -c 'r.Action' module.go` |
-| 5 actions the policy answers about | `grep -cE '^\t[A-Za-z]+ security.Action = ' policy.go` |
-| 2 direct dependencies, both under `arandu-io` | `go list -m -f '{{if and (not .Indirect) (not .Main)}}{{.Path}} {{.Version}}{{end}}' all` |
-
-The layout is by role rather than by layer, so the package reads top to bottom:
+| 9 Go files in one package at the root | `grep -l '^package br' *.go` |
+| 6 test files, 4 fuzz targets | `find tests -name '*_test.go'` · `grep -c '^func Fuzz' tests/Unit/*.go` |
+| 0 routes, 0 tables, 0 capabilities | `arandu.mod.toml`, `TestThePackageIsALibrary` |
+| 1 direct dependency, `github.com/arandu-io/hesape` | `go list -m -f '{{if and (not .Indirect) (not .Main)}}{{.Path}} {{.Version}}{{end}}' all` |
 
 ```
-module.go         registration, routes, handlers and migrations
-config.go         what the application passes in
-model.go          the entity, its table, its own rules, and what it may answer with
-BrQuery.go  the query on that table, generated by aru model:build
-policy.go         who may do what
-service.go        validation, authorization and persistence with the Grant
-views.go          the files the application takes ownership of
+doc.go                    the package comment
+cpf.go, cnpj.go, cep.go   parsing, check digits and punctuation
+shape.go                  the masks the three share
+rules.go                  the four hesape/validation rules and their init
+money.go, date.go         BRL and Date
+uf.go                     the UF enum
 ```
 
-`brTable`, in `model.go`, declares the table once: its name, the
-`ManualKey` that says the text primary key is written by the application, and
-the default `tenant_id` scope. `Brs(db)` is generated from it into
-`BrQuery.go` and returns the concrete `*BrQuery`; that file is never
-edited by hand, and `aru model:build --check` says when it is stale. Its
-terminals return `*Br` and `BrCollection`; keep those pointers
-intact, because copying an embedded Model leaves its `Entity` pointer aimed at
-the original allocation.
-
-The rules of the entity itself (invariants, derived values, transitions that
-change only its own fields) live in the custom block of `model.go`, and they
-are pure. The service holds none of them: it validates the request, asks the
-policy for a Grant, calls those rules and saves with the Grant. `Resource` and
-`Collection` are the deliberate response snapshot boundary.
-
-## What does not exist here
-
-Reaching for one of these is the most common way to write a package that is
-rejected in review. None of them is missing by accident.
+## What does not exist here, on purpose
 
 | A model reaches for | What is here instead |
 | --- | --- |
-| a service provider, a container, a `Register()` that discovers things | `New(cfg, db, sessions)`, called by hand in the installer's `bootstrap/app.go`. Everything the package touches is a parameter |
-| a global `DB`, an `init()` that opens a connection | the `*data.DB` handed to `New`. A package that opened its own connection would be a package the application cannot point at a test database |
-| a CRUD Repository beside the Model | `Brs(db)`, reached only by `BrService` after `security.Authorize` |
-| a tenant read from the path, the body, the query or a header | `data.Tenant(g)`, from the Grant, which came from the session |
-| a permit-all branch in the policy "for now" | nothing. The policy denies, and an action is opened by writing the rule that opens it |
-| an `interface{}` config, a map of options, an env var read at call time | the typed `Config` struct, validated by `New` |
-| a `panic` on bad wiring | an `error` from `New`. A wiring mistake found at boot costs one restart |
-| a third dependency | an argument, first. This module is imported into other people's builds |
-| a command of its own that copies files into a project | `Publishes()`, which declares a tagged tree and nothing more. `aru vendor:publish` asks the application which modules it registered and writes what each one declares, so one command serves every installed package instead of one command per package |
+| `New`, a `Module`, a `Config`, a line in `k.Register` | nothing. A caller imports the package and calls a function |
+| `br.Register()` called from `main` or `bootstrap/app.go` | the `init` in `rules.go`, and nothing else in it. Rule sets are compiled in package-level variables, before `main`; a registration called later comes after them. `TestThePackageIsALibrary` refuses an `init` that does anything but `validation.Extend` |
+| the rule name `"cpf"` written in a rule set | `br.RuleCPF`. Naming the constant imports the package, which is what orders its `init` before the set is compiled |
+| trimming, re-punctuating, or accepting any separator | the one conventional mask or the bare value, nothing else. A value the person did not type is a value nobody can explain |
+| a lookup at the Receita Federal or the Correios | nothing. `network = false`; a validator that calls out fails when the network does |
+| `number.CurrencyFromCents` behind `number.WithLocale` | `BRL`, which reads no process-wide setting. The tests hold the two to the same string under `pt-BR`, so this is the same answer and not a second one |
+| a real person's CPF or CNPJ in a test, a comment or a README | a document generated by the oracle in `tests/Unit/documents_test.go`, or the Receita Federal's published specimen `12.ABC.345/01DE-35` |
+| an import of the framework, `hesape/database` or `hesape/http` | the standard library, `hesape/validation` and `hesape/enum`. `TestThePackageIsALibrary` holds the list |
 
 ## The four properties
 
-These are the reason the package is shaped the way it is. A change that breaks
-one of them is not merged, whatever else it improves. `tests/Unit/policy_test.go`
-checks all four against the code.
+A change that breaks one of them is not merged, whatever else it improves.
 
-1. **The policy denies by default**, and has no branch that allows an action.
-   `TestThePolicyDeniesEveryActionByDefault` walks every action with an
-   administrator subject and requires
-   `security.ErrForbidden` from each.
-2. **Every Service method authorizes before it reaches the Model.**
-   `TestEveryServiceMethodAuthorizesBeforeTheModel` checks the source, and
-   `TestTheServiceRefusesBeforeReachingTheModel` gives the Service a nil handle
-   so even constructing `Brs` in the wrong order fails.
-3. **The tenant comes from `data.Tenant(g)`**, on every path, read and write.
-   `TestTheTenantComesFromTheGrant` and
-   `TestTheServiceWritesTenantOnlyFromTheGrant` hold both halves.
-4. **Nothing reaches the Model without passing the first two.** The denial
-   suite constructs the Service with a nil database, so a call to
-   `Brs(nil)` would panic. Every refusal it asserts is therefore proof
-   that authorization happened before Model construction.
-
-`policy_test.go` holds those four by calling the code. `tests/Unit/audit_test.go`
-holds the same shape by *reading* it: every exported Service method must call
-`Authorize` before its first `Brs`, every tenant write in the Service
-comes from `data.Tenant(g)`, and no tenant accessor reads request input.
-
-It also compares `arandu.mod.toml` against what the code *calls* —
-`os.WriteFile`, `exec.Command`, `http.Get`, a method named `Migrations` — rather
-than against what it imports, because `net/http` is imported by everything with
-a route and says nothing. Both directions fail: used and not declared, which is
-`permission-not-declared` where the doctor runs it, and declared and not used,
-which is a warning there and a failure here because `go test` has one outcome.
-Adding an outbound call, a file write or a process means declaring it in the
-same commit, and the suite is what says so.
-
-The fifth property is not syntax, so it is held where the routes exist.
-`TestNoRouteLandsInTheFrameworkNamespace`, in `tests/Feature/routes_test.go`,
-registers the module and reads the table back: a prefix arrives through
-configuration, and `/_arandu/` is refused when the application boots — in the
-installer's process, after publication.
-
-What the audit does not reach is written at the top of the file it lives in. It
-reads syntax, so dynamic dispatch, reflection, and wrappers around the named
-seams are invisible to it. A green run means no such thing was found written
-down, not that none exists.
+1. **The oracle decides.** Every check is compared with an implementation
+   written apart from the package, from the weight tables, on generated input,
+   on every single-character substitution and under fuzzing. A change to the
+   arithmetic that the oracle disagrees with is a bug in the change.
+2. **A rule and its Parse function are one check.** `RuleCPF` accepts what
+   `ParseCPF` accepts, through `ValidCPF`; nothing in `rules.go` checks a value
+   itself.
+3. **Formatting never validates and never fails.** `CPF`, `CNPJ` and `CEP`
+   return what they cannot punctuate unchanged; `BRL` and `Date` are total.
+4. **`arandu.mod.toml` matches the code.** All four capabilities are `false`,
+   and `tests/Unit/audit_test.go` compares that with what the code calls.
 
 ## Writing code
 
 Everything in the source is in English: identifiers, doc comments, internal
-comments, error messages, log messages, and the names and messages of tests.
-`pkg.go.dev` publishes the doc comments and its readers are users of this
-package.
+comments, error messages, and the names and messages of tests. The names of the
+federative units in `UF.Label` are data, and are the names as they are written.
 
 Every exported symbol carries a doc comment, and the comment documents the
 symbol and nothing else. Why a signature is what it is belongs there when it is
-a fact about the code — *"the value is held because Go does not build a type
-from a string"* stays. A date, an issue number, a version in progress or the
+a fact about the code. A date, an issue number, a version in progress or the
 name of another repository does not.
 
-Tests go under `tests/`, in a capitalized category directory declaring a
-lowercase external package: `tests/Unit` holds `package unit_test`,
-`tests/Feature` holds `package feature_test`. Both import the package by its
-module path, which is what makes them see exactly what a caller sees. A test
-that genuinely needs something unexported goes beside the code as
-`*_internal_test.go`, and the suffix is how it says so.
+Tests go under `tests/Unit`, declaring `package unit_test`, and import the
+package by its module path, which is what makes them see exactly what a caller
+sees.

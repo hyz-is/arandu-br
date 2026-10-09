@@ -48,10 +48,12 @@ the verdict for most of them is *do not build*. A `PKG-` note can describe
 something that will never exist as code. A `MOD-` note cannot: it is written from
 a published repository, so the repository comes first and the note second.
 
-A module here means a first-party Go repository that implements
-`foundation.Module`, is registered explicitly in an application's
-`bootstrap/app.go`, and imports the framework rather than the other way round. It
-lives outside `arandu-io` and is not in the root `go.work`.
+A module here means a first-party Go repository published outside `arandu-io`,
+which an application requires and the root `go.work` does not list. Most of them
+implement `foundation.Module` and are registered in `bootstrap/app.go`; this one
+does not. It is a library an application imports and calls, with no route, no
+table and no policy, and its note says so in the second answer below rather than
+inventing a registration.
 
 ### What the note has to answer
 
@@ -62,11 +64,13 @@ Four questions, in this order, because it is the order somebody reads them in:
    what the code actually calls, in this repository — nothing downstream does,
    because `aru doctor` reads the application's own tree and never opens an
    installed package.
-2. **How an application wires it.** The typed construction and the explicit
-   registration. Never a service provider, a container or discovery — writing
-   those into a note is how the next reader builds one.
-3. **What it requires of the core.** The framework and hesape floors, from
-   `go.mod`, matching the `framework = ">= x.y"` line in the manifest.
+2. **How an application uses it.** For this package: the import, the rule
+   constants a rule set names, and the reason there is nothing to register.
+   Never a service provider, a container or discovery — writing those into a
+   note is how the next reader builds one.
+3. **What it requires of the core.** The Hesape version from `go.mod`, and the
+   `framework = ">= x.y"` line in the manifest, which is the first Framework
+   release built on that Hesape.
 4. **What has already broken in it.** The `GAP-` notes whose `layer:` is this
    module.
 

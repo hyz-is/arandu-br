@@ -15,16 +15,19 @@ names the situation you are in rather than the topic it covers.
 
 | skill | when it fires |
 | --- | --- |
-| `br-policy` | opening an action, adding an authorized Model-backed use case, or anything answering 403 |
-| `br-module` | adding a route, a handler, a config field, a response field or a migration |
-| `br-release` | the gates, the manifest, a dependency, a version, a tag |
+| `br-release` | the gates, the fuzz runs, the manifest, a dependency, a version, a tag |
 | `br-vault-notes` | writing the note, the gap or the journal entry, when this checkout sits inside the Arandu Obsidian vault |
-| `br-package` | installing and wiring this package **into an application** |
+| `br-package` | validating or formatting a CPF, a CNPJ, a CEP, reais, a date or a UF **in an application** |
 
-The last one has a different audience from the other three, and that is on
+The template this package started from carried a `-policy` and a `-module`
+skill. Both taught the HTTP module the template ships, and this package removed
+it: there is no policy to open and no route, handler or migration to add.
+
+`br-package` has a different audience from the other two, and that is on
 purpose: it travels with the package so that an assistant working in somebody
-else's project — the one running `go get` — has the wiring, the migration step
-and the closed policy in front of it instead of guessing.
+else's project — the one running `go get` — has the rule constants, the accepted
+shapes and the symptoms in front of it instead of writing a CPF check of its
+own.
 
 Its frontmatter says so, under `metadata`, with `audience: app`. That line is
 what `aru skills:sync` reads to copy the skill into an application whose
@@ -38,20 +41,17 @@ package cloned somewhere else never grows a folder tree imitating one.
 
 ## Why these exist
 
-The audience of the first three is somebody changing the package. The common
-failure modes are a provider, a container lookup, a hand edit to the generated
-`BrQuery.go`, a rule of the entity written into the Service instead of the
-custom block of `model.go`, a handler that loads the session or maps an error to
-a status itself, a CRUD Repository beside the Model, a tenant read from the URL,
-or a Policy branch that returns nil for administrators "for now". None belongs
-here, and the last three are security failures rather than style disagreements.
+The common failure modes when changing this package are a check widened to
+accept what a person did not type, a rule in `rules.go` that checks a value
+itself instead of calling the Parse function, an `init` that does more than
+register rules, a `Register` function an application is told to call from
+`main` — after its rule sets were compiled — and a real person's document
+pasted into a test. None belongs here.
 
-The package is built to be checked rather than trusted. Its denial tests use a
-nil database, so reaching even the generated query constructor before
-authorization panics. The structural twin reads every exported Service method
-and checks the same order on the allowed path, and reads every handler for the
-subject and the status it must leave to the framework. Running
-`go test -race ./...` exercises all of it.
+The package is built to be checked rather than trusted. Every check is compared
+with an oracle written apart from it, on generated documents, on every
+single-character substitution and under fuzzing, and the structure test holds
+the library shape. Running `go test -race ./...` exercises all of it.
 
 ## Adding your own
 
