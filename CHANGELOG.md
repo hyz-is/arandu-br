@@ -10,6 +10,20 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-09
+
+### Changed
+
+- Requires Hesape v0.52.0. The manifest's framework floor is `>= 0.55`:
+  Framework v0.55.1 is the first release built on that Hesape. No symbol,
+  rule name, accepted value or returned spelling changes; `apidiff` against
+  v0.1.0 reports nothing.
+- An application below those releases upgrades them first, following their
+  upgrade guides from the versions it required before. Hesape v0.52.0 removed
+  the names it had deprecated; from Framework v0.55.0 an unread `SESSION_*`
+  setting stops the boot, and from v0.54.0 a boolean setting that does not
+  read as one does.
+
 ## [0.1.0] - 2026-10-09
 
 ### Added

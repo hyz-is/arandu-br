@@ -1,5 +1,15 @@
 # Upgrade Guide
 
+## v0.1.1
+
+Nothing in the package changes. The release requires Hesape v0.52.0 and
+declares `framework = ">= 0.55"`, so `go get` raises an application's Hesape
+to v0.52.0. An application on an older Framework moves to v0.55.1 first,
+reading the Framework and Hesape upgrade guides from the versions it required
+before: Hesape v0.52.0 removed the names it had deprecated, and Framework
+v0.54.0 and v0.55.0 refuse at boot a malformed boolean setting and an unread
+`SESSION_*` setting.
+
 ## v0.1.0
 
 The first release. There is nothing to upgrade from.
