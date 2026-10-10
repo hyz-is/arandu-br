@@ -10,6 +10,22 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-09
+
+### Changed
+
+- Requires Hesape v0.54.0. The manifest's framework floor is `>= 0.56`:
+  Framework v0.56.0 is the first release built on that Hesape. No symbol,
+  rule name, accepted value or returned spelling changes; `apidiff` against
+  v0.1.1 reports nothing, and `hesape/validation` and `hesape/enum`, the two
+  packages this one imports, did not change between Hesape v0.52.0 and
+  v0.54.0.
+- An application below those releases upgrades them first, following their
+  upgrade guides from the versions it required before. Framework v0.56.0
+  removed `config.Config.SessionTTL` and stopped reading `SESSION_TTL` in
+  `config.Load`; an application that boots with `bootstrap.LoadConfiguration`
+  compiles and boots unchanged.
+
 ## [0.1.1] - 2026-10-09
 
 ### Changed

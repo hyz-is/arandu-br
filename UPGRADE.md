@@ -1,5 +1,14 @@
 # Upgrade Guide
 
+## v0.1.2
+
+Nothing in the package changes. The release requires Hesape v0.54.0 and
+declares `framework = ">= 0.56"`, so `go get` raises an application's Hesape
+to v0.54.0. An application on an older Framework moves to v0.56.0 first,
+reading the Framework and Hesape upgrade guides from the versions it required
+before: Framework v0.56.0 removed `config.Config.SessionTTL`, which an
+application that boots with `bootstrap.LoadConfiguration` never read.
+
 ## v0.1.1
 
 Nothing in the package changes. The release requires Hesape v0.52.0 and
