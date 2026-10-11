@@ -1,5 +1,15 @@
 # Upgrade Guide
 
+## v0.2.0
+
+Nothing changes for code already using the package. The release adds the
+mobile number: an application that validated or formatted one itself (a local
+`NormalizeMobile`, a phone regexp) replaces it with `br.ParseMobile`,
+`br.ValidMobile` or `br.Mobile`, and a rule set names `br.RuleMobile`. The
+parser accepts the eleven digits bare or as `(00) 00000-0000` and nothing
+else: a `+55` prefix or a space-separated spelling is refused, so a form uses
+the mask.
+
 ## v0.1.2
 
 Nothing in the package changes. The release requires Hesape v0.54.0 and

@@ -32,9 +32,11 @@ const (
 	RuleCPFOrCNPJ = "cpf_or_cnpj"
 	// RuleCEP is a CEP, as ParseCEP accepts it.
 	RuleCEP = "cep"
+	// RuleMobile is a Brazilian mobile number, as ParseMobile accepts it.
+	RuleMobile = "celular"
 )
 
-// init puts the four rules into the validation catalogue, and does nothing
+// init puts the rules into the validation catalogue, and does nothing
 // else.
 //
 // The catalogue is where hesape/validation looks a rule name up when a rule
@@ -49,6 +51,7 @@ func init() {
 	validation.Extend(RuleCNPJ, accepts(ValidCNPJ), "is not a valid CNPJ")
 	validation.Extend(RuleCPFOrCNPJ, accepts(validCPFOrCNPJ), "is not a valid CPF or CNPJ")
 	validation.Extend(RuleCEP, accepts(ValidCEP), "is not a valid CEP")
+	validation.Extend(RuleMobile, accepts(ValidMobile), "is not a valid mobile number")
 }
 
 // accepts turns a check on a string into the shape the catalogue takes. A value

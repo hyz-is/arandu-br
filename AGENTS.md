@@ -1,7 +1,7 @@
 # Working on Arandu BR
 
 This is an Arandu package that validates and formats Brazilian values: the CPF,
-the CNPJ (numeric and alphanumeric), the CEP, amounts in reais, dates, and the
+the CNPJ (numeric and alphanumeric), the CEP, the mobile number, amounts in reais, dates, and the
 federative unit. It is a Go module somebody `go get`s and imports.
 
 It began as the package skeleton, configured as `hyz-is/br`, and the HTTP
@@ -44,6 +44,7 @@ every `go test`; the run is what looks past them:
 go test -run='^$' -fuzz='^FuzzParseCPF$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseCNPJ$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseCEP$' -fuzztime=30s ./tests/Unit
+go test -run='^$' -fuzz='^FuzzParseMobile$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzBRLAgreesWithHesapeUnderPtBR$' -fuzztime=30s ./tests/Unit
 ```
 
@@ -55,8 +56,8 @@ It does not read this package after it is installed either, which is why
 
 | | measured with |
 | --- | --- |
-| 9 Go files in one package at the root | `grep -l '^package br' *.go` |
-| 6 test files, 4 fuzz targets | `find tests -name '*_test.go'` · `grep -c '^func Fuzz' tests/Unit/*.go` |
+| 10 Go files in one package at the root | `grep -l '^package br' *.go` |
+| 7 test files, 5 fuzz targets | `find tests -name '*_test.go'` · `grep -c '^func Fuzz' tests/Unit/*.go` |
 | 0 routes, 0 tables, 0 capabilities | `arandu.mod.toml`, `TestThePackageIsALibrary` |
 | 1 direct dependency, `github.com/arandu-io/hesape` | `go list -m -f '{{if and (not .Indirect) (not .Main)}}{{.Path}} {{.Version}}{{end}}' all` |
 

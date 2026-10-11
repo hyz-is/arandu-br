@@ -5,7 +5,7 @@
 # Arandu BR
 
 The Brazilian values an Arandu application takes from a form and prints on a
-page: the CPF, the CNPJ (numeric and alphanumeric), the CEP, an amount in reais,
+page: the CPF, the CNPJ (numeric and alphanumeric), the CEP, the mobile number, an amount in reais,
 a date, and the federative unit.
 
 It is a library. It registers no route, owns no table and decides no
@@ -45,6 +45,7 @@ var StoreCustomer = validation.MustCompile(validation.Rules{
 | `br.RuleCNPJ` | `cnpj` | a CNPJ, `00000000000000` or `00.000.000/0000-00`, letters allowed in the first twelve positions |
 | `br.RuleCPFOrCNPJ` | `cpf_or_cnpj` | either of the two |
 | `br.RuleCEP` | `cep` | a CEP, `00000000` or `00000-000` |
+| `br.RuleMobile` | `celular` | a mobile number, `00000000000` or `(00) 00000-0000`, with a real area code and the leading 9 |
 
 Write the constant, not the word it holds. A rule name exists once it is in the
 catalogue, and a rule set is compiled in a package-level variable, before
@@ -59,7 +60,7 @@ Each rule checks what the matching `Parse` function checks, takes no argument
 number has already lost its leading zeros. A blank value is left to `required`
 or `nullable`.
 
-A failure reads `is not a valid CPF` (`CNPJ`, `CPF or CNPJ`, `CEP`). An
+A failure reads `is not a valid CPF` (`CNPJ`, `CPF or CNPJ`, `CEP`, `mobile number`). An
 application that speaks Portuguese names its own sentence under
 `validation.cpf`, `validation.cnpj`, `validation.cpf_or_cnpj` and
 `validation.cep` in its translations, which `hesape/validation` reads before

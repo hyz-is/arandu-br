@@ -10,6 +10,18 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-11
+
+### Added
+
+- `ParseMobile`, `ValidMobile` and `Mobile`: a Brazilian mobile number written
+  bare or as `(00) 00000-0000`, with an area code Anatel assigns, the leading
+  `9`, and the nine followed by eight zeros refused; returned as its eleven
+  digits, and punctuated for a page.
+- `ErrInvalidMobile`.
+- The `hesape/validation` rule `celular`, named by `RuleMobile`, registered
+  with the other four when the package is initialized.
+
 ## [0.1.2] - 2026-10-09
 
 ### Changed
