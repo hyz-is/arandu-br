@@ -34,6 +34,9 @@ const (
 	RuleCEP = "cep"
 	// RuleMobile is a Brazilian mobile number, as ParseMobile accepts it.
 	RuleMobile = "celular"
+	// RuleBRL is an amount in reais, as ParseBRL accepts it: the price or the
+	// budget field of a form.
+	RuleBRL = "brl"
 )
 
 // init puts the rules into the validation catalogue, and does nothing
@@ -52,6 +55,7 @@ func init() {
 	validation.Extend(RuleCPFOrCNPJ, accepts(validCPFOrCNPJ), "is not a valid CPF or CNPJ")
 	validation.Extend(RuleCEP, accepts(ValidCEP), "is not a valid CEP")
 	validation.Extend(RuleMobile, accepts(ValidMobile), "is not a valid mobile number")
+	validation.Extend(RuleBRL, accepts(ValidBRL), "is not a valid amount in reais")
 }
 
 // accepts turns a check on a string into the shape the catalogue takes. A value

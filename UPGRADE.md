@@ -1,5 +1,43 @@
 # Upgrade Guide
 
+## v0.3.0
+
+Nothing changes for code already using the package: every addition is new,
+and `BRL` writes what it wrote before. An application that hid part of a
+document, read an amount in reais or printed one in a variant of `BRL`
+replaces its own function with the package's:
+
+- a local `maskCPF`, `MaskCPF`, `MaskedCPF` or `maskCNPJ` becomes
+  `br.RedactCPF(cpf, r)` or `br.RedactCNPJ(cnpj, r)`, with a named
+  `Redaction` (`br.KeepCPFMiddle`, `br.KeepCPFMiddleBare`,
+  `br.KeepCPFCheckDigits`, `br.KeepCPFLastFive`, `br.KeepCNPJEnds`) or its own
+  literal, such as `"•••.###.###-••"`. The redaction answers `""` for a value
+  it cannot read, where a local version may have hidden all of it, kept it, or
+  trimmed and re-punctuated it first; an application that wants another
+  answer for that case writes it beside the call;
+- a local BRL parser becomes `br.ParseBRL`, and a rule set names
+  `br.RuleBRL`;
+- a hand-written `fmt.Sprintf("R$ %d,%02d", ...)` becomes
+  `br.FormatBRL(cents, br.BRLFormat{WithoutGrouping: true})`, and a price
+  printed without zero centavos becomes
+  `br.FormatBRL(cents, br.BRLFormat{WithoutZeroCents: true})`.
+
+`ParseBRL` reads one set of spellings, and two that applications read
+before differ from it. Check what a form received before switching:
+
+- a dot followed by one or two digits is the decimal point (`1.50` is one
+  real and fifty centavos, `12.34` twelve reais and thirty-four), and a dot
+  followed by three digits groups thousands (`1.234` is one thousand two
+  hundred and thirty-four reais). A parser that dropped every dot read the
+  first as a hundred and fifty reais; one that read every dot as the decimal
+  point refused the second;
+- a dot anywhere else (`1.2345`, `1..000`, `.0,01`), a space between the
+  digits (`1 234`) and a sign (`1.-5`, `-10`) are refused;
+- zero is an amount: a form that needs a positive one keeps checking
+  `cents > 0` itself;
+- the symbol `R$` and whitespace around the amount are accepted, so a form
+  that refused them now takes them.
+
 ## v0.2.0
 
 Nothing changes for code already using the package. The release adds the

@@ -1,6 +1,7 @@
 // Package br validates and formats the Brazilian values an application takes
 // from a form and prints on a page: the CPF, the CNPJ, the CEP, an amount in
-// reais, a date, and the federative unit.
+// reais, a date, and the federative unit -- and a CPF or a CNPJ with part of
+// it hidden.
 //
 // It is a library. It registers no route, owns no table and decides no
 // authorization, so nothing about it goes in bootstrap/app.go: a caller
@@ -14,9 +15,13 @@
 // and the CNPJ are checked against the check digits the Receita Federal
 // computes; the CNPJ may be alphanumeric.
 //
+// ParseMobile reads a mobile number the same way. ParseBRL reads an amount in
+// reais as a person types it, R$ 1.234,56, or as an HTML number input submits
+// it, 1234.56, and returns centavos.
+//
 // The same checks are rules of hesape/validation, registered when this
-// package is initialized and named by RuleCPF, RuleCNPJ, RuleCPFOrCNPJ and
-// RuleCEP:
+// package is initialized and named by RuleCPF, RuleCNPJ, RuleCPFOrCNPJ,
+// RuleCEP, RuleMobile and RuleBRL:
 //
 //	var StoreCustomer = validation.MustCompile(validation.Rules{
 //		"document": "required|" + br.RuleCPFOrCNPJ,
@@ -25,9 +30,12 @@
 //
 // # Printing a value
 //
-// CPF, CNPJ and CEP punctuate a stored value; BRL writes centavos as reais,
-// R$ 1.234,56; Date writes a day as 31/12/2026. Each is a function of its
-// argument alone.
+// CPF, CNPJ, CEP and Mobile punctuate a stored value; BRL writes centavos as
+// reais, R$ 1.234,56, and FormatBRL writes them without the grouping or
+// without zero centavos; Date writes a day as 31/12/2026. RedactCPF and
+// RedactCNPJ write a document with part of it hidden, through a Redaction
+// such as KeepCPFMiddle, ***.456.789-**. Each is a function of its arguments
+// alone.
 //
 // UF is the closed set of the twenty-seven units, in the shape hesape/enum
 // reads: UFValues, Label for the name a form shows, and Value and Scan for a
@@ -36,8 +44,10 @@
 // The files are laid out by subject:
 //
 //	cpf.go, cnpj.go, cep.go  -> parsing, check digits and punctuation
-//	shape.go                 -> the masks the three share
+//	mobile.go                -> the mobile number
+//	shape.go                 -> the masks they share
+//	redact.go                -> RedactCPF, RedactCNPJ and Redaction
 //	rules.go                 -> the hesape/validation rules
-//	money.go, date.go        -> BRL and Date
+//	money.go, date.go        -> BRL, FormatBRL, ParseBRL and Date
 //	uf.go                    -> the UF enum
 package br

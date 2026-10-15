@@ -116,7 +116,7 @@ func TestTheRuleNamesAreTheOnesHesapeKnows(t *testing.T) {
 	// The names as an application would spell them by hand, after this
 	// package has been initialized: the constants are the spelling, and these
 	// are what they hold.
-	for _, name := range []string{"cpf", "cnpj", "cpf_or_cnpj", "cep"} {
+	for _, name := range []string{"cpf", "cnpj", "cpf_or_cnpj", "cep", "celular", "brl"} {
 		if _, err := validation.Compile(validation.Rules{"field": name}); err != nil {
 			t.Errorf("rule %q is not in the catalogue: %v", name, err)
 		}

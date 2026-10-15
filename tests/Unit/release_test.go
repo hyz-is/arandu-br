@@ -210,7 +210,7 @@ func captureReleaseValue(t *testing.T, body, pattern, label string) string {
 // It is written here and compared against the changelog rather than read out of
 // it: a test that took the number from the file it checks would pass on a file
 // that lost its heading.
-const currentVersion = "0.2.0"
+const currentVersion = "0.3.0"
 
 // TestTheChangelogAndTheUpgradeGuideAgreeOnTheVersion keeps the two pages a
 // person reads before upgrading from naming different releases, and the
@@ -237,8 +237,8 @@ func TestEveryRuleIsNamedInAReleasedChangelogEntry(t *testing.T) {
 	released := releasedChangelog(t)
 
 	names := regexp.MustCompile(`(?m)^\t(Rule[A-Za-z]+) = "([a-z_]+)"$`).FindAllStringSubmatch(rules, -1)
-	if len(names) != 5 {
-		t.Fatalf("rules.go declares %d rule constants, want the five the package registers", len(names))
+	if len(names) != 6 {
+		t.Fatalf("rules.go declares %d rule constants, want the six the package registers", len(names))
 	}
 	for _, name := range names {
 		for _, spelling := range []string{"`" + name[1] + "`", "`" + name[2] + "`"} {

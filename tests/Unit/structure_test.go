@@ -326,10 +326,12 @@ func TestTheGuidesTeachALibrary(t *testing.T) {
 	guides := map[string][]string{
 		"README.md": {
 			"go get github.com/hyz-is/arandu-br", "br.RuleCPF", "br.ParseCPF", "br.BRL(", "br.UFValues()",
+			"br.ParseBRL(", "br.FormatBRL(", "br.RedactCPF(", "br.RuleBRL",
 		},
 		"AGENTS.md": {"RuleCPF", "validation.Extend", "TestThePackageIsALibrary"},
 		".agents/skills/br-package/SKILL.md": {
 			"go get github.com/hyz-is/arandu-br", "br.RuleCPFOrCNPJ", "Write the constant, never the word",
+			"br.ParseBRL(", "br.FormatBRL(", "br.RedactCPF(", "br.RuleBRL",
 		},
 		".agents/skills/br-release/SKILL.md": {"FuzzParseCNPJ", "TestTheModuleRequiresNothingButHesape"},
 		".agents/skills/README.md":           {"br-package", "br-release", "br-vault-notes"},

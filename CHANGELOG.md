@@ -10,6 +10,33 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-15
+
+### Added
+
+- `RedactCPF` and `RedactCNPJ`: a CPF or a CNPJ written with part of it
+  hidden, through a `Redaction` spelled like the document -- `#` shows a
+  position, every other character is written as it stands -- in the
+  punctuated or the bare length. A value of another shape, or a redaction of
+  neither length, gives `""`, never the value itself; the check digits are
+  not checked.
+- The `Redaction` type and five named ones: `KeepCPFMiddle`
+  (`***.456.789-**`), `KeepCPFMiddleBare` (`***456789**`),
+  `KeepCPFCheckDigits` (`***.***.***-00`), `KeepCPFLastFive`
+  (`***.***.789-00`) and `KeepCNPJEnds` (`12.***.***/****-35`).
+- `ParseBRL` and `ValidBRL`: an amount in reais as a person types it --
+  `R$ 1.234,56`, `1234,56`, `1.500`, `R$ 47`, whitespace around it -- or as an
+  HTML number input submits it, `1234.56`; returned as centavos in an `int64`.
+  A sign, a misplaced dot or space, a third decimal and an overflow are
+  refused.
+- `ErrInvalidBRL`.
+- The `hesape/validation` rule `brl`, named by `RuleBRL`, registered with the
+  other five when the package is initialized.
+- `FormatBRL` and `BRLFormat`: `BRL` without the grouping (`R$ 1234,56`,
+  `WithoutGrouping`) or without the centavos of a whole amount (`R$ 47`,
+  `WithoutZeroCents`). `BRL` is `FormatBRL` with the zero `BRLFormat`, and
+  writes what it wrote before.
+
 ## [0.2.0] - 2026-10-11
 
 ### Added

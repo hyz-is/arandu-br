@@ -2,7 +2,8 @@
 
 This is an Arandu package that validates and formats Brazilian values: the CPF,
 the CNPJ (numeric and alphanumeric), the CEP, the mobile number, amounts in reais, dates, and the
-federative unit. It is a Go module somebody `go get`s and imports.
+federative unit, and writes a CPF or a CNPJ with part of it hidden. It is a Go
+module somebody `go get`s and imports.
 
 It began as the package skeleton, configured as `hyz-is/br`, and the HTTP
 module the template ships was removed on purpose: there is no entity, no table,
@@ -46,6 +47,8 @@ go test -run='^$' -fuzz='^FuzzParseCNPJ$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseCEP$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseMobile$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzBRLAgreesWithHesapeUnderPtBR$' -fuzztime=30s ./tests/Unit
+go test -run='^$' -fuzz='^FuzzParseBRL$' -fuzztime=30s ./tests/Unit
+go test -run='^$' -fuzz='^FuzzRedactCPF$' -fuzztime=30s ./tests/Unit
 ```
 
 `aru doctor` is not one of the gates. It reads applications, and exits 1 here.
@@ -56,17 +59,19 @@ It does not read this package after it is installed either, which is why
 
 | | measured with |
 | --- | --- |
-| 10 Go files in one package at the root | `grep -l '^package br' *.go` |
-| 7 test files, 5 fuzz targets | `find tests -name '*_test.go'` · `grep -c '^func Fuzz' tests/Unit/*.go` |
+| 11 Go files in one package at the root | `grep -l '^package br' *.go` |
+| 9 test files, 7 fuzz targets | `find tests -name '*_test.go'` · `grep -c '^func Fuzz' tests/Unit/*.go` |
 | 0 routes, 0 tables, 0 capabilities | `arandu.mod.toml`, `TestThePackageIsALibrary` |
 | 1 direct dependency, `github.com/arandu-io/hesape` | `go list -m -f '{{if and (not .Indirect) (not .Main)}}{{.Path}} {{.Version}}{{end}}' all` |
 
 ```
 doc.go                    the package comment
 cpf.go, cnpj.go, cep.go   parsing, check digits and punctuation
-shape.go                  the masks the three share
-rules.go                  the four hesape/validation rules and their init
-money.go, date.go         BRL and Date
+mobile.go                 the mobile number
+shape.go                  the masks they share
+redact.go                 RedactCPF, RedactCNPJ and the Redaction type
+rules.go                  the six hesape/validation rules and their init
+money.go, date.go         BRL, FormatBRL, ParseBRL and Date
 uf.go                     the UF enum
 ```
 
@@ -94,8 +99,11 @@ A change that breaks one of them is not merged, whatever else it improves.
 2. **A rule and its Parse function are one check.** `RuleCPF` accepts what
    `ParseCPF` accepts, through `ValidCPF`; nothing in `rules.go` checks a value
    itself.
-3. **Formatting never validates and never fails.** `CPF`, `CNPJ` and `CEP`
-   return what they cannot punctuate unchanged; `BRL` and `Date` are total.
+3. **Formatting never validates and never fails.** `CPF`, `CNPJ`, `CEP` and
+   `Mobile` return what they cannot punctuate unchanged; `BRL`, `FormatBRL`
+   and `Date` are total. `RedactCPF` and `RedactCNPJ` return `""` for what
+   they cannot read, and never their input: a redaction that fell back to the
+   value would print what it exists to hide.
 4. **`arandu.mod.toml` matches the code.** All four capabilities are `false`,
    and `tests/Unit/audit_test.go` compares that with what the code calls.
 

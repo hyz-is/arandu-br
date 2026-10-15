@@ -6,7 +6,7 @@
 
 The Brazilian values an Arandu application takes from a form and prints on a
 page: the CPF, the CNPJ (numeric and alphanumeric), the CEP, the mobile number, an amount in reais,
-a date, and the federative unit.
+a date, and the federative unit — and a CPF or a CNPJ with part of it hidden.
 
 It is a library. It registers no route, owns no table and decides no
 authorization, so there is nothing to wire in `bootstrap/app.go`, nothing to
@@ -27,7 +27,7 @@ capability: no network, no filesystem, no process, no migration.
 
 ## Validate a form
 
-The package registers four rules with `hesape/validation` when it is
+The package registers six rules with `hesape/validation` when it is
 initialized. Name them by their constants:
 
 ```go
@@ -46,6 +46,7 @@ var StoreCustomer = validation.MustCompile(validation.Rules{
 | `br.RuleCPFOrCNPJ` | `cpf_or_cnpj` | either of the two |
 | `br.RuleCEP` | `cep` | a CEP, `00000000` or `00000-000` |
 | `br.RuleMobile` | `celular` | a mobile number, `00000000000` or `(00) 00000-0000`, with a real area code and the leading 9 |
+| `br.RuleBRL` | `brl` | an amount in reais, as `ParseBRL` reads it |
 
 Write the constant, not the word it holds. A rule name exists once it is in the
 catalogue, and a rule set is compiled in a package-level variable, before
@@ -60,10 +61,11 @@ Each rule checks what the matching `Parse` function checks, takes no argument
 number has already lost its leading zeros. A blank value is left to `required`
 or `nullable`.
 
-A failure reads `is not a valid CPF` (`CNPJ`, `CPF or CNPJ`, `CEP`, `mobile number`). An
-application that speaks Portuguese names its own sentence under
-`validation.cpf`, `validation.cnpj`, `validation.cpf_or_cnpj` and
-`validation.cep` in its translations, which `hesape/validation` reads before
+A failure reads `is not a valid CPF` (`CNPJ`, `CPF or CNPJ`, `CEP`, `mobile
+number`, `amount in reais`). An application that speaks Portuguese names its
+own sentence under `validation.cpf`, `validation.cnpj`,
+`validation.cpf_or_cnpj`, `validation.cep`, `validation.celular` and
+`validation.brl` in its translations, which `hesape/validation` reads before
 the default.
 
 ## Take a value in
@@ -103,6 +105,29 @@ call.
 is what a seeder or a factory needs to write a valid document without borrowing
 somebody's.
 
+### An amount in reais
+
+```go
+cents, err := br.ParseBRL(in.String("budget")) // int64 centavos, or ErrInvalidBRL
+```
+
+`ParseBRL` reads an amount as a person types it, and as an HTML number input
+submits it:
+
+| typed | centavos |
+| --- | --- |
+| `R$ 1.234,56`, `R$1.234,56`, `1.234,56`, `1234,56` | `123456` |
+| `1.500` | `150000` — a dot followed by three digits groups thousands |
+| `1234.56`, `1,5`, `1.5` | `123456`, `150`, `150` — a dot followed by one or two digits is the decimal point |
+| `R$ 47`, `0` | `4700`, `0` |
+
+Whitespace around the amount and after `R$` is ignored. A sign, another
+currency, a space or a dot elsewhere among the digits, a group of other than
+three digits, a third decimal and an amount past the largest `int64` are
+refused. Zero is an amount; a form that needs a positive one says so itself. A
+number input that takes centavos carries `step="0.01"`, which keeps a third
+decimal — `1.500` meaning one and a half — out of what it submits.
+
 ## Print a value
 
 ```go
@@ -112,6 +137,10 @@ br.CEP("70040010")         // "70040-010"
 br.BRL(123456)             // "R$ 1.234,56"
 br.BRL(-99)                // "-R$ 0,99"
 br.Date(t.In(saoPaulo))    // "31/12/2026"
+
+br.FormatBRL(123456, br.BRLFormat{WithoutGrouping: true}) // "R$ 1234,56"
+br.FormatBRL(4700, br.BRLFormat{WithoutZeroCents: true})  // "R$ 47"
+br.FormatBRL(19950, br.BRLFormat{WithoutZeroCents: true}) // "R$ 199,50"
 ```
 
 `CPF`, `CNPJ` and `CEP` punctuate a value of the right shape and return
@@ -123,9 +152,39 @@ integer — and writes every one, the most negative included. It writes the same
 string as `number.CurrencyFromCents(cents, "BRL")` with the process-wide locale
 set to `pt-BR`, and depends on no process-wide setting.
 
+`FormatBRL` is `BRL` departing from it in what its `BRLFormat` names, and the
+zero `BRLFormat` is `BRL` itself. Every amount it prints, `ParseBRL` reads back.
+
 `Date` writes the day `t` holds in its own location. A time read from the
 database is usually in UTC, where a late evening in Brasília is already the next
 day, so convert it with `t.In(location)` first.
+
+## Hide part of a document
+
+```go
+br.RedactCPF("12345678900", br.KeepCPFMiddle)      // "***.456.789-**"
+br.RedactCPF("123.456.789-00", br.KeepCPFLastFive) // "***.***.789-00"
+br.RedactCPF("12345678900", "•••.###.###-••")      // "•••.456.789-••"
+br.RedactCNPJ("12ABC34501DE35", br.KeepCNPJEnds)   // "12.***.***/****-35"
+```
+
+A `Redaction` is spelled like the document: `#` shows the character in that
+position and every other character is written as it stands, the separators
+included. It has the length of the punctuated spelling or of the bare one, and
+the output takes that spelling.
+
+| redaction | pattern | prints |
+| --- | --- | --- |
+| `br.KeepCPFMiddle` | `***.###.###-**` | as the Portal da Transparência publishes a CPF |
+| `br.KeepCPFMiddleBare` | `***######**` | as the Receita Federal's open CNPJ data publishes a partner's CPF |
+| `br.KeepCPFCheckDigits` | `***.***.***-##` | only the two check digits, which identify nobody |
+| `br.KeepCPFLastFive` | `***.***.###-##` | what a profile page shows its owner |
+| `br.KeepCNPJEnds` | `##.***.***/****-##` | the first two and the last two characters |
+
+`RedactCPF` and `RedactCNPJ` read the value as `ParseCPF` and `ParseCNPJ` do,
+bare or punctuated, and do not check the check digits. Anything else — and a
+redaction of neither length — gives `""`, never the value: a redaction that
+fell back to its input would print what it exists to hide.
 
 ## The federative units
 
@@ -163,9 +222,11 @@ As a column, `Value` and `Scan` refuse a code outside the set.
 
 ```
 cpf.go, cnpj.go, cep.go   parsing, check digits and punctuation
-shape.go                  the masks the three share
+mobile.go                 the mobile number
+shape.go                  the masks they share
+redact.go                 RedactCPF, RedactCNPJ and the Redaction type
 rules.go                  the hesape/validation rules
-money.go, date.go         BRL and Date
+money.go, date.go         BRL, FormatBRL, ParseBRL and Date
 uf.go                     the UF enum
 ```
 
