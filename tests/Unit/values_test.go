@@ -93,6 +93,30 @@ func TestDate(t *testing.T) {
 	}
 }
 
+func TestDateTime(t *testing.T) {
+	t.Parallel()
+
+	brasilia := time.FixedZone("BRT", -3*60*60)
+	lateEvening := time.Date(2026, time.December, 31, 22, 30, 59, 0, brasilia)
+	for _, tc := range []struct {
+		name string
+		at   time.Time
+		want string
+	}{
+		{"the morning, padded", time.Date(2026, time.March, 5, 9, 7, 0, 0, time.UTC), "05/03/2026 09:07"},
+		{"a twenty-four hour clock", time.Date(2026, time.March, 5, 23, 59, 59, 0, time.UTC), "05/03/2026 23:59"},
+		{"in the location it holds", lateEvening, "31/12/2026 22:30"},
+		{"the same instant in UTC is the next day", lateEvening.UTC(), "01/01/2027 01:30"},
+	} {
+		if got := br.DateTime(tc.at); got != tc.want {
+			t.Errorf("%s: DateTime = %q, want %q", tc.name, got, tc.want)
+		}
+		if got, want := br.DateTime(tc.at)[:10], br.Date(tc.at); got != want {
+			t.Errorf("%s: DateTime starts %q, Date writes %q", tc.name, got, want)
+		}
+	}
+}
+
 // fold lowers a name and drops the accents Portuguese names carry, which is
 // how a person alphabetizes them.
 func fold(s string) string {

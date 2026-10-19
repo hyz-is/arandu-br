@@ -1,5 +1,20 @@
 # Upgrade Guide
 
+## v0.4.0
+
+Nothing changes for code already using the package: every addition is new,
+and `BRL`, `FormatBRL` and `Date` write what they wrote before. An application
+that wrote these by hand replaces its own with the package's:
+
+- a hand-written `fmt.Sprintf("%d,%02d", cents/100, cents%100)` that fills a
+  form field becomes `br.FormatBRL(cents, br.BRLFormat{WithoutSymbol: true,
+  WithoutGrouping: true})`, which writes a negative amount with its sign
+  (`-12,34`) where the hand-written one wrote `-12,-34`;
+- a local formatter of an exact decimal amount in reais -- a usage price, a
+  residual of a rounding -- becomes `br.BRLDecimal(decimal)`, given the text
+  `math/big` or a decimal column writes (`1234.5678`), not a float;
+- `t.Format("02/01/2006 15:04")` becomes `br.DateTime(t)`.
+
 ## v0.3.0
 
 Nothing changes for code already using the package: every addition is new,

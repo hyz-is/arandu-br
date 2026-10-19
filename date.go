@@ -10,3 +10,12 @@ import "time"
 // next day, so convert it first -- br.Date(t.In(location)) -- with the location
 // the reader lives in.
 func Date(t time.Time) string { return t.Format("02/01/2006") }
+
+// DateTime writes the calendar day and the time of day of t as a Brazilian
+// page prints them: 31/12/2026 15:04, the day as Date writes it, a space, and
+// the hours and minutes on a twenty-four hour clock.
+//
+// Like Date it reads t in its own location, so an instant from a database is
+// converted first -- br.DateTime(t.In(location)) -- with the location the
+// reader lives in, and a page that keeps UTC says so beside it.
+func DateTime(t time.Time) string { return t.Format("02/01/2006 15:04") }

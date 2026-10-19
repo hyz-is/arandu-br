@@ -10,6 +10,20 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-19
+
+### Added
+
+- `BRLFormat.WithoutSymbol`: `FormatBRL` without the `R$` and the space after
+  it, `1.234,56`, the way a form field is filled with an amount; with
+  `WithoutGrouping`, `1234,56`. `ParseBRL` reads both back.
+- `BRLDecimal`: an exact amount of reais held as decimal text, `1234.5678`,
+  written with the symbol, the grouping and the comma and every digit of the
+  fraction kept, `R$ 1.234,5678`. A value that is not a decimal is returned
+  unchanged.
+- `DateTime`: a day and a time of day, `31/12/2026 15:04`, in the location the
+  time holds.
+
 ## [0.3.0] - 2026-10-15
 
 ### Added

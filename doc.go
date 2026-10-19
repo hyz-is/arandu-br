@@ -31,8 +31,10 @@
 // # Printing a value
 //
 // CPF, CNPJ, CEP and Mobile punctuate a stored value; BRL writes centavos as
-// reais, R$ 1.234,56, and FormatBRL writes them without the grouping or
-// without zero centavos; Date writes a day as 31/12/2026. RedactCPF and
+// reais, R$ 1.234,56, and FormatBRL writes them without the grouping, without
+// zero centavos or without the symbol; BRLDecimal writes an exact decimal
+// amount finer than a centavo, every digit kept; Date writes a day as
+// 31/12/2026 and DateTime a day and a time as 31/12/2026 15:04. RedactCPF and
 // RedactCNPJ write a document with part of it hidden, through a Redaction
 // such as KeepCPFMiddle, ***.456.789-**. Each is a function of its arguments
 // alone.
@@ -48,6 +50,6 @@
 //	shape.go                 -> the masks they share
 //	redact.go                -> RedactCPF, RedactCNPJ and Redaction
 //	rules.go                 -> the hesape/validation rules
-//	money.go, date.go        -> BRL, FormatBRL, ParseBRL and Date
+//	money.go, date.go        -> BRL, FormatBRL, BRLDecimal, ParseBRL, Date and DateTime
 //	uf.go                    -> the UF enum
 package br

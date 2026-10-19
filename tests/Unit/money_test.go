@@ -146,9 +146,69 @@ func TestFormatBRLReproducesWhatApplicationsPrinted(t *testing.T) {
 		{123400, br.BRLFormat{WithoutGrouping: true, WithoutZeroCents: true}, "R$ 1234"},
 		{math.MinInt64, br.BRLFormat{WithoutGrouping: true}, "-R$ 92233720368547758,08"},
 		{math.MaxInt64, br.BRLFormat{WithoutZeroCents: true}, "R$ 92.233.720.368.547.758,07"},
+		{123456, br.BRLFormat{WithoutSymbol: true}, "1.234,56"},
+		{-123456, br.BRLFormat{WithoutSymbol: true}, "-1.234,56"},
+		{123456, br.BRLFormat{WithoutSymbol: true, WithoutGrouping: true}, "1234,56"},
+		{5, br.BRLFormat{WithoutSymbol: true, WithoutGrouping: true}, "0,05"},
+		{4700, br.BRLFormat{WithoutSymbol: true, WithoutZeroCents: true}, "47"},
 	} {
 		if got := br.FormatBRL(tc.cents, tc.f); got != tc.want {
 			t.Errorf("FormatBRL(%d, %+v) = %q, want %q", tc.cents, tc.f, got, tc.want)
+		}
+	}
+}
+
+// TestParseBRLReadsWhatFormatBRLWritesWithoutTheSymbol holds the promise
+// WithoutSymbol is for: a form field filled with the amount reads back as the
+// amount.
+func TestParseBRLReadsWhatFormatBRLWritesWithoutTheSymbol(t *testing.T) {
+	t.Parallel()
+
+	for _, cents := range amounts() {
+		if cents < 0 {
+			continue
+		}
+		for _, f := range []br.BRLFormat{{WithoutSymbol: true}, {WithoutSymbol: true, WithoutGrouping: true}} {
+			written := br.FormatBRL(cents, f)
+			if got, err := br.ParseBRL(written); err != nil || got != cents {
+				t.Errorf("ParseBRL(%q) = %d, %v; FormatBRL wrote it from %d", written, got, err, cents)
+			}
+		}
+	}
+}
+
+func TestBRLDecimal(t *testing.T) {
+	t.Parallel()
+
+	for in, want := range map[string]string{
+		"1234.5678":                      "R$ 1.234,5678",
+		"0.000001":                       "R$ 0,000001",
+		"-0.000001":                      "-R$ 0,000001",
+		"47":                             "R$ 47",
+		"1234567.10":                     "R$ 1.234.567,10",
+		"0.000000000000000001":           "R$ 0,000000000000000001",
+		"123456789012345678901234567890": "R$ 123.456.789.012.345.678.901.234.567.890",
+		"12.30":                          "R$ 12,30",
+	} {
+		if got := br.BRLDecimal(in); got != want {
+			t.Errorf("BRLDecimal(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for _, in := range []string{"", "-", ".5", "1.", "1,5", "1.2.3", "R$ 1", " 1", "1e3", "--1", "+1", "１"} {
+		if got := br.BRLDecimal(in); got != in {
+			t.Errorf("BRLDecimal(%q) = %q, want it returned unchanged", in, got)
+		}
+	}
+	for _, cents := range amounts() {
+		decimal := fmt.Sprintf("%d.%02d", cents/100, cents%100)
+		if cents < 0 {
+			decimal = fmt.Sprintf("-%d.%02d", -(cents / 100), -(cents % 100))
+		}
+		if cents == math.MinInt64 {
+			continue
+		}
+		if got, want := br.BRLDecimal(decimal), br.BRL(cents); got != want {
+			t.Errorf("BRLDecimal(%q) = %q, BRL(%d) writes %q", decimal, got, cents, want)
 		}
 	}
 }

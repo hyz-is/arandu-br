@@ -137,10 +137,14 @@ br.CEP("70040010")         // "70040-010"
 br.BRL(123456)             // "R$ 1.234,56"
 br.BRL(-99)                // "-R$ 0,99"
 br.Date(t.In(saoPaulo))    // "31/12/2026"
+br.DateTime(t.In(saoPaulo)) // "31/12/2026 15:04"
 
 br.FormatBRL(123456, br.BRLFormat{WithoutGrouping: true}) // "R$ 1234,56"
 br.FormatBRL(4700, br.BRLFormat{WithoutZeroCents: true})  // "R$ 47"
 br.FormatBRL(19950, br.BRLFormat{WithoutZeroCents: true}) // "R$ 199,50"
+br.FormatBRL(123456, br.BRLFormat{WithoutSymbol: true, WithoutGrouping: true}) // "1234,56", for a form field
+
+br.BRLDecimal("1234.5678") // "R$ 1.234,5678", every digit kept
 ```
 
 `CPF`, `CNPJ` and `CEP` punctuate a value of the right shape and return
@@ -153,9 +157,17 @@ string as `number.CurrencyFromCents(cents, "BRL")` with the process-wide locale
 set to `pt-BR`, and depends on no process-wide setting.
 
 `FormatBRL` is `BRL` departing from it in what its `BRLFormat` names, and the
-zero `BRLFormat` is `BRL` itself. Every amount it prints, `ParseBRL` reads back.
+zero `BRLFormat` is `BRL` itself. Every amount it prints, `ParseBRL` reads back
+-- `WithoutSymbol` is how a form field is filled with an amount it hands back.
 
-`Date` writes the day `t` holds in its own location. A time read from the
+`BRLDecimal` writes an amount finer than a centavo -- a price per unit of
+usage, the exact total a charge was rounded from -- held as decimal text, the
+way `math/big` and a decimal column write it: the digits of the reais, then a
+dot and every digit of the fraction. Nothing is rounded, and a value that is
+not a decimal is returned unchanged.
+
+`Date` writes the day `t` holds in its own location, and `DateTime` the day
+and the time of day, `31/12/2026 15:04`. A time read from the
 database is usually in UTC, where a late evening in Brasília is already the next
 day, so convert it with `t.In(location)` first.
 
@@ -226,7 +238,7 @@ mobile.go                 the mobile number
 shape.go                  the masks they share
 redact.go                 RedactCPF, RedactCNPJ and the Redaction type
 rules.go                  the hesape/validation rules
-money.go, date.go         BRL, FormatBRL, ParseBRL and Date
+money.go, date.go         BRL, FormatBRL, BRLDecimal, ParseBRL, Date and DateTime
 uf.go                     the UF enum
 ```
 

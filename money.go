@@ -40,12 +40,16 @@ type BRLFormat struct {
 	// WithoutZeroCents leaves the centavos off an amount of whole reais, the
 	// way a price list writes one: R$ 47, and still R$ 199,50.
 	WithoutZeroCents bool
+	// WithoutSymbol leaves the R$ and the space after it off, the way a form
+	// field holds an amount it hands back to the person: 1.234,56, and
+	// -1.234,56 for a negative one. ParseBRL reads it back.
+	WithoutSymbol bool
 }
 
 // FormatBRL writes an amount of reais held as a count of centavos, as BRL
 // does, departing from it in what f says: R$ 1234,56 without the grouping,
-// R$ 47 without the zero centavos. The sign, the symbol and the comma are
-// BRL's, and every int64 is written.
+// R$ 47 without the zero centavos, 1.234,56 without the symbol. The sign and
+// the comma are BRL's, and every int64 is written.
 func FormatBRL(cents int64, f BRLFormat) string {
 	// The magnitude is taken in uint64 because the most negative int64 has no
 	// positive counterpart to negate it into.
@@ -61,13 +65,10 @@ func FormatBRL(cents int64, f BRLFormat) string {
 	if negative {
 		b.WriteByte('-')
 	}
-	b.WriteString("R$ ")
-	for i := 0; i < len(reais); i++ {
-		if !f.WithoutGrouping && i > 0 && (len(reais)-i)%3 == 0 {
-			b.WriteByte('.')
-		}
-		b.WriteByte(reais[i])
+	if !f.WithoutSymbol {
+		b.WriteString("R$ ")
 	}
+	writeReais(&b, reais, !f.WithoutGrouping)
 	if f.WithoutZeroCents && centavos == 0 {
 		return b.String()
 	}
@@ -75,6 +76,54 @@ func FormatBRL(cents int64, f BRLFormat) string {
 	b.WriteByte(byte('0' + centavos/10))
 	b.WriteByte(byte('0' + centavos%10))
 	return b.String()
+}
+
+// BRLDecimal writes an exact amount of reais held as decimal text -- the
+// digits of the reais, then a dot and as many digits of a fraction of a real
+// as the amount has, the way math/big and a decimal column write one -- with
+// the symbol, the grouping and the comma of BRL, and every digit of the
+// fraction kept: 1234.5678 is R$ 1.234,5678, -0.000001 is -R$ 0,000001 and
+// 47 is R$ 47.
+//
+// It is for an amount finer than a centavo -- a price per unit of usage, the
+// exact total a charge was rounded from -- that a page must show to the last
+// digit it was computed to. Nothing is rounded and no float64 appears on the
+// way: the digits that arrive are the digits written.
+//
+// The amount is an optional minus sign, one ASCII digit or more, and
+// optionally a dot followed by one digit or more. Anything else is returned
+// unchanged: it formats, and does not validate.
+func BRLDecimal(amount string) string {
+	digits, negative := amount, false
+	if rest, ok := strings.CutPrefix(digits, "-"); ok {
+		digits, negative = rest, true
+	}
+	reais, fraction, hasFraction := strings.Cut(digits, ".")
+	if reais == "" || !allDigits(reais) || hasFraction && (fraction == "" || !allDigits(fraction)) {
+		return amount
+	}
+	var b strings.Builder
+	if negative {
+		b.WriteByte('-')
+	}
+	b.WriteString("R$ ")
+	writeReais(&b, reais, true)
+	if hasFraction {
+		b.WriteByte(',')
+		b.WriteString(fraction)
+	}
+	return b.String()
+}
+
+// writeReais writes the digits of the reais, with a dot before each group of
+// three when grouped.
+func writeReais(b *strings.Builder, reais string, grouped bool) {
+	for i := 0; i < len(reais); i++ {
+		if grouped && i > 0 && (len(reais)-i)%3 == 0 {
+			b.WriteByte('.')
+		}
+		b.WriteByte(reais[i])
+	}
 }
 
 // ParseBRL reads an amount in reais as a person types it into a form, and
