@@ -10,6 +10,14 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-19
+
+### Fixed
+
+- `ParseMobile`, `ValidMobile` and the `celular` rule accept a mobile number
+  punctuated without the space after the area code, `(00)00000-0000`, the way
+  it is often typed; it returns the same eleven digits.
+
 ## [0.4.0] - 2026-10-19
 
 ### Added

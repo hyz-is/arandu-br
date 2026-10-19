@@ -17,6 +17,7 @@ func TestParseMobileAcceptsBothSpellingsAndReturnsTheDigits(t *testing.T) {
 		"(11) 91234-5678": "11912345678",
 		"11912345678":     "11912345678",
 		"(85) 99000-1234": "85990001234",
+		"(11)91234-5678":  "11912345678",
 	} {
 		got, err := br.ParseMobile(in)
 		if err != nil || got != want {
@@ -31,12 +32,13 @@ func TestParseMobileAcceptsBothSpellingsAndReturnsTheDigits(t *testing.T) {
 func TestParseMobileRefuses(t *testing.T) {
 	for _, in := range []string{
 		"",
-		"(10) 91234-5678", // no area code 10
-		"(20) 91234-5678", // nor 20
-		"(11) 81234-5678", // a mobile number starts with 9
-		"(11) 90000-0000", // the nine and eight zeros a form fills
-		"1191234567",      // ten digits: a landline's length
-		"(11)91234-5678",  // neither spelling
+		"(10) 91234-5678",  // no area code 10
+		"(20) 91234-5678",  // nor 20
+		"(11) 81234-5678",  // a mobile number starts with 9
+		"(11) 90000-0000",  // the nine and eight zeros a form fills
+		"1191234567",       // ten digits: a landline's length
+		"(11)  91234-5678", // two spaces
+		"(11)9123-45678",   // the hyphen out of place
 		"+55 11 91234-5678",
 		"(11) 9123A-5678",
 	} {

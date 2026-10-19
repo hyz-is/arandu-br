@@ -45,7 +45,7 @@ var StoreCustomer = validation.MustCompile(validation.Rules{
 | `br.RuleCNPJ` | `cnpj` | a CNPJ, `00000000000000` or `00.000.000/0000-00`, letters allowed in the first twelve positions |
 | `br.RuleCPFOrCNPJ` | `cpf_or_cnpj` | either of the two |
 | `br.RuleCEP` | `cep` | a CEP, `00000000` or `00000-000` |
-| `br.RuleMobile` | `celular` | a mobile number, `00000000000` or `(00) 00000-0000`, with a real area code and the leading 9 |
+| `br.RuleMobile` | `celular` | a mobile number, `00000000000`, `(00) 00000-0000` or `(00)00000-0000`, with a real area code and the leading 9 |
 | `br.RuleBRL` | `brl` | an amount in reais, as `ParseBRL` reads it |
 
 Write the constant, not the word it holds. A rule name exists once it is in the

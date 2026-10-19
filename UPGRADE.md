@@ -1,5 +1,11 @@
 # Upgrade Guide
 
+## v0.4.1
+
+Nothing to change. `ParseMobile` now also accepts `(00)00000-0000`, the
+punctuated number without the space after the area code, which it refused
+before; every value it accepted still parses to the same digits.
+
 ## v0.4.0
 
 Nothing changes for code already using the package: every addition is new,
