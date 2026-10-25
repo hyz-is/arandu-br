@@ -1,6 +1,6 @@
 # Upgrade Guide
 
-## Unreleased: v0.6.0
+## v0.6.0
 
 A minor release that breaks the registration API of v0.5.0 on purpose, to match
 the one `hesape/validation` v0.88.0 provides for a module: the rules are a

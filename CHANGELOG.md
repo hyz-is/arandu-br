@@ -10,6 +10,18 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-25
+
+### Changed
+
+- **Breaking:** `Rules()` is the `validation.Provider` an application hands to
+  `Factory.Use` at boot, with Hesape `v0.88.0`: `validation.NewFactory(...).Use(br.Rules())`.
+  It returned a slice of `Rule` before; the table is `Defs()` now, a slice of
+  `validation.RuleDef`, and the `Rule` type is gone. `Install` stays as a
+  deprecated wrapper around `Use(Rules())`.
+- A rule that takes no argument no longer compiles with one, and
+  `inscricao_estadual` needs exactly one of the 27 states.
+
 ## [0.5.0] - 2026-10-25
 
 ### Added
