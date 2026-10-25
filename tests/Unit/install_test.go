@@ -35,33 +35,31 @@ func TestEveryDeclaredNameResolvesAndSaysItsSentenceWithTheAttribute(t *testing.
 	t.Parallel()
 
 	seen := map[string]bool{}
-	for _, rule := range br.Rules() {
+	for _, rule := range br.Defs() {
 		if rule.Name == "" || rule.Check == nil {
 			t.Fatalf("a rule has no name or no check: %+v", rule)
 		}
-		message := rule.Message("pt-BR")
+		message := rule.Messages["pt-BR"]
 		if !strings.HasPrefix(message, "O campo :attribute ") || !strings.HasSuffix(message, ".") {
 			t.Errorf("%s: sentence %q does not read 'O campo :attribute ... .'", rule.Name, message)
 		}
-		if rule.Message("xx-XX") != message {
-			t.Errorf("%s: an unknown locale does not fall back to pt-BR", rule.Name)
+		if rule.Params.Max != 0 && !strings.Contains(message, ":uf") {
+			t.Errorf("%s: sentence %q does not hold :uf", rule.Name, message)
 		}
-		for _, parameter := range rule.Parameters {
-			if !strings.Contains(message, ":"+parameter) {
-				t.Errorf("%s: sentence %q does not hold :%s", rule.Name, message, parameter)
-			}
+		if rule.Implicit || rule.Dependent {
+			t.Errorf("%s runs on a blank value or names another field; no rule here does", rule.Name)
 		}
-		for _, name := range rule.Names() {
+		for _, name := range append([]string{rule.Name}, rule.Aliases...) {
 			if seen[name] {
 				t.Errorf("%s is declared twice", name)
 			}
 			seen[name] = true
 
 			ruleString := name
-			if len(rule.Parameters) > 0 {
+			if rule.Params.Max != 0 {
 				ruleString += ":BA"
 			}
-			set, err := validation.Compile(validation.Rules{"documento": ruleString})
+			set, err := installed.Compile(validation.Rules{"documento": ruleString})
 			if err != nil {
 				t.Errorf("%s does not resolve in the catalogue: %v", ruleString, err)
 				continue
@@ -90,8 +88,8 @@ func TestEveryNameTheTaskNamesIsDeclared(t *testing.T) {
 		"cpf_or_cnpj", "cpf_cnpj", "formato_cpf_cnpj",
 	}
 	declared := map[string]bool{}
-	for _, rule := range br.Rules() {
-		for _, name := range rule.Names() {
+	for _, rule := range br.Defs() {
+		for _, name := range append([]string{rule.Name}, rule.Aliases...) {
 			declared[name] = true
 		}
 	}
@@ -108,9 +106,8 @@ func TestTheSentencesGoThroughAnApplicationsLanguageFile(t *testing.T) {
 	f := validation.NewFactory(linesTranslator{
 		"validation.cpf":         "Informe um CPF em :attribute.",
 		"validation.formato_cep": "O CEP de :attribute vai com hífen.",
-	})
-	br.Install(f)
-	set := validation.MustCompile(validation.Rules{"documento": "cpf", "endereco": "formato_cep", "unidade": "uf"})
+	}).Use(br.Rules())
+	set := f.MustCompile(validation.Rules{"documento": "cpf", "endereco": "formato_cep", "unidade": "uf"})
 	errs := failuresOf(f, set, validation.Data{"documento": "1", "endereco": "70040010", "unidade": "XX"})
 	for field, want := range map[string]string{
 		"documento": "Informe um CPF em documento.",
@@ -126,10 +123,9 @@ func TestTheSentencesGoThroughAnApplicationsLanguageFile(t *testing.T) {
 func TestAnAttributeNameIsTheOneTheApplicationGives(t *testing.T) {
 	t.Parallel()
 
-	f := validation.NewFactory(nil)
+	f := validation.NewFactory(nil).Use(br.Rules())
 	f.SetAttributeNames(map[string]string{"documento": "CPF do cliente"})
-	br.Install(f)
-	set := validation.MustCompile(validation.Rules{"documento": "cpf"})
+	set := f.MustCompile(validation.Rules{"documento": "cpf"})
 	if got := failuresOf(f, set, validation.Data{"documento": "1"}).Get("documento"); len(got) != 1 || got[0] != "O campo CPF do cliente não é um CPF válido." {
 		t.Errorf("messages = %q", got)
 	}
@@ -141,9 +137,8 @@ func TestTheStateRegistrationSentenceNamesTheUnit(t *testing.T) {
 	for rule, want := range map[string]string{
 		"inscricao_estadual:sp": "O campo ie não é uma inscrição estadual válida para SP.",
 		"inscricao_estadual:BA": "O campo ie não é uma inscrição estadual válida para BA.",
-		"inscricao_estadual":    "O campo ie não é uma inscrição estadual válida para a UF informada.",
 	} {
-		set := validation.MustCompile(validation.Rules{"ie": rule})
+		set := installed.MustCompile(validation.Rules{"ie": rule})
 		if got := failuresOf(installed, set, validation.Data{"ie": "123"}).Get("ie"); len(got) != 1 || got[0] != want {
 			t.Errorf("%s: messages = %q, want %q", rule, got, want)
 		}
@@ -154,10 +149,10 @@ func TestMessagesListsEveryNameInTheLocale(t *testing.T) {
 	t.Parallel()
 
 	messages := br.Messages("pt-BR")
-	for _, rule := range br.Rules() {
-		for _, name := range rule.Names() {
-			if messages[name] != rule.Message("pt-BR") {
-				t.Errorf("Messages(pt-BR)[%q] = %q, want %q", name, messages[name], rule.Message("pt-BR"))
+	for _, rule := range br.Defs() {
+		for _, name := range append([]string{rule.Name}, rule.Aliases...) {
+			if messages[name] != rule.Messages["pt-BR"] {
+				t.Errorf("Messages(pt-BR)[%q] = %q, want %q", name, messages[name], rule.Messages["pt-BR"])
 			}
 		}
 	}
@@ -166,13 +161,23 @@ func TestMessagesListsEveryNameInTheLocale(t *testing.T) {
 	}
 }
 
-func TestInstallIsRepeatableAndReachesTheCatalogueWithoutAFactory(t *testing.T) {
+func TestInstallIsTheDeprecatedWayToUseTheModule(t *testing.T) {
 	t.Parallel()
 
-	// A second factory, and a nil one, find every name already registered and
-	// register nothing twice: a panic here is the catalogue refusing a name.
+	// Install is Use, so it is repeatable on one factory, a second factory has
+	// its own registry, and a nil one is ignored: where a name is already
+	// declared, nothing registers twice and nothing panics.
+	f := validation.NewFactory(nil)
+	br.Install(f)
+	br.Install(f)
 	br.Install(validation.NewFactory(nil))
 	br.Install(nil)
+	f.Use(br.Rules())
+
+	set := f.MustCompile(validation.Rules{"cep": "formato_cep"})
+	if got := failuresOf(f, set, validation.Data{"cep": "7"}).Get("cep"); len(got) != 1 || got[0] != "O campo cep não possui um formato válido de CEP." {
+		t.Errorf("messages = %q", got)
+	}
 }
 
 func TestTheConstantsOfTheTwoRenamedRulesHoldTheNewNames(t *testing.T) {
@@ -226,7 +231,7 @@ func TestDocumentsAreHandledAsTextWithTheirLeadingZeros(t *testing.T) {
 		}
 	}
 	// A number loses them, and no rule takes a number.
-	set := validation.MustCompile(validation.Rules{"cpf": "cpf", "cnpj": "cnpj"})
+	set := installed.MustCompile(validation.Rules{"cpf": "cpf", "cnpj": "cnpj"})
 	if errs := failuresOf(installed, set, validation.Data{"cpf": 191, "cnpj": int64(191)}); len(errs) != 2 {
 		t.Errorf("a document sent as a number was not refused: %v", errs)
 	}

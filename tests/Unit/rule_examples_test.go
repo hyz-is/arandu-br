@@ -7,15 +7,9 @@ import (
 	br "github.com/hyz-is/arandu-br"
 )
 
-// installed is the factory an application builds at boot, with the rules
-// installed on it. The tests that name a rule other than the ones registered
-// when the package is imported compile their sets from it, after Install, as an
-// application does.
-var installed = func() *validation.Factory {
-	f := validation.NewFactory(nil)
-	br.Install(f)
-	return f
-}()
+// installed is the factory an application builds at boot, with the rules of
+// this package used on it. The tests compile their sets from it.
+var installed = validation.NewFactory(nil).Use(br.Rules())
 
 // example is one value and what the rule says of it. note, when set, is where
 // the answer departs from the PHP package the example comes from.
@@ -245,17 +239,12 @@ var stateExamples = map[string][]example{
 	"inscricao_estadual:SE": join(ok("646597361"), no("646597362")),
 	"inscricao_estadual:TO": join(ok("75036274184"), no("75036274185")),
 	// The unit is the argument, in either case, and it has to be one.
-	"inscricao_estadual:ba":    ok("82679341"),
-	"inscricao_estadual:ZA":    no("82679341"),
-	"inscricao_estadual:y":     no("82679341"),
-	"inscricao_estadual:12":    no("82679341"),
-	"inscricao_estadual":       no("82679341"),
-	"inscricao_estadual:BA,SP": no("82679341"),
+	"inscricao_estadual:ba": ok("82679341"),
 }
 
 func passes(t *testing.T, rule, value string) bool {
 	t.Helper()
-	set, err := validation.Compile(validation.Rules{"field": rule})
+	set, err := installed.Compile(validation.Rules{"field": rule})
 	if err != nil {
 		t.Fatalf("compiling %q: %v", rule, err)
 	}
@@ -299,8 +288,8 @@ func TestEveryRuleHasAtLeastOneExampleOfEachKind(t *testing.T) {
 			t.Errorf("%s has %d valid and %d invalid examples", rule, valid, invalid)
 		}
 	}
-	for _, rule := range br.Rules() {
-		for _, name := range rule.Names() {
+	for _, rule := range br.Defs() {
+		for _, name := range append([]string{rule.Name}, rule.Aliases...) {
 			if !covered[name] && name != "inscricao_estadual" {
 				t.Errorf("rule %s has no examples", name)
 			}
@@ -316,35 +305,49 @@ func TestEveryRuleHasAtLeastOneExampleOfEachKind(t *testing.T) {
 	}
 }
 
-func TestARuleWithoutParametersRefusesAnArgumentAndANonString(t *testing.T) {
+func TestARuleWithoutParametersDoesNotCompileWithOneAndRefusesANonString(t *testing.T) {
 	t.Parallel()
-	for _, rule := range br.Rules() {
-		if len(rule.Parameters) != 0 {
+	for _, def := range br.Defs() {
+		if def.Params.Max != 0 {
 			continue
 		}
-		for _, name := range rule.Names() {
-			set, err := validation.Compile(validation.Rules{"field": name + ":x"})
-			if err != nil {
-				t.Fatalf("compiling %s:x: %v", name, err)
-			}
-			// Find a value the rule accepts: the first valid example.
-			var good string
-			for _, c := range examples[name] {
-				if c.valid {
-					good = c.in
-					break
+		for _, name := range append([]string{def.Name}, def.Aliases...) {
+			// The rules the factory declares do not compile with an argument.
+			// The eight the process-wide catalogue holds, registered when the
+			// package is imported, do, and refuse every value instead.
+			if set, err := installed.Compile(validation.Rules{"field": name + ":x"}); err == nil {
+				var good string
+				for _, c := range examples[name] {
+					if c.valid {
+						good = c.in
+						break
+					}
+				}
+				if installed.Make(validation.Data{"field": good}, set).Passes() {
+					t.Errorf("%s:x accepted %q; an argument the rule ignores is a typo nothing reports", name, good)
 				}
 			}
-			if installed.Make(validation.Data{"field": good}, set).Passes() {
-				t.Errorf("%s:x accepted %q; an argument the rule ignores is a typo nothing reports", name, good)
-			}
-			plain := validation.MustCompile(validation.Rules{"field": name, "other": "nullable|" + name})
+			plain := installed.MustCompile(validation.Rules{"field": name, "other": "nullable|" + name})
 			if installed.Make(validation.Data{"field": 12345678901}, plain).Passes() {
 				t.Errorf("%s accepted a number", name)
 			}
 			if errs := failuresOf(installed, plain, validation.Data{"field": "", "other": nil}); errs.Any() {
 				t.Errorf("%s refused a blank value and a null beside nullable: %v", name, errs)
 			}
+		}
+	}
+}
+
+func TestInscricaoEstadualNeedsExactlyOneUnitThatExists(t *testing.T) {
+	t.Parallel()
+	for _, rule := range []string{"inscricao_estadual", "inscricao_estadual:ZA", "inscricao_estadual:y", "inscricao_estadual:12", "inscricao_estadual:BA,SP", "inscricao_estadual:"} {
+		if _, err := installed.Compile(validation.Rules{"ie": rule}); err == nil {
+			t.Errorf("%s compiled", rule)
+		}
+	}
+	for _, rule := range []string{"inscricao_estadual:BA", "inscricao_estadual:ba"} {
+		if _, err := installed.Compile(validation.Rules{"ie": rule}); err != nil {
+			t.Errorf("%s: %v", rule, err)
 		}
 	}
 }
