@@ -8,9 +8,9 @@ import (
 )
 
 // installed is the factory an application builds at boot, with the rules
-// installed on it. The tests that name a rule other than the seven registered
-// when the package is imported compile their sets from it, after Install, as
-// an application does.
+// installed on it. The tests that name a rule other than the ones registered
+// when the package is imported compile their sets from it, after Install, as an
+// application does.
 var installed = func() *validation.Factory {
 	f := validation.NewFactory(nil)
 	br.Install(f)

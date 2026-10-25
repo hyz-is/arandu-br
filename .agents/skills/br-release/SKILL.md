@@ -38,7 +38,7 @@ and this is a library.
 
 ## The fuzz runs
 
-`go test` runs the seeds of the seven fuzz targets every time. Before a release,
+`go test` runs the seeds of the nine fuzz targets every time. Before a release,
 and after any change to a parser, run each one for a while; `go test -fuzz`
 takes one target at a time:
 
@@ -47,6 +47,8 @@ go test -run='^$' -fuzz='^FuzzParseCPF$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseCNPJ$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseCEP$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseMobile$' -fuzztime=30s ./tests/Unit
+go test -run='^$' -fuzz='^FuzzParsePhones$' -fuzztime=30s ./tests/Unit
+go test -run='^$' -fuzz='^FuzzParseStateRegistration$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzBRLAgreesWithHesapeUnderPtBR$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseBRL$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzRedactCPF$' -fuzztime=30s ./tests/Unit

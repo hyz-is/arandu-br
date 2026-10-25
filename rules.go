@@ -22,13 +22,13 @@ import (
 // A rule exists in the catalogue of hesape/validation once Install has run,
 // and a rule set compiled before that fails at boot with an unknown rule.
 // Compile the sets after the application calls Install, from the function
-// that wires the application. The seven rules the previous releases
-// registered when this package was imported -- RuleCPF, RuleCNPJ,
-// RuleCPFOrCNPJ, RuleCEP, RuleMobile, RuleBRL and the spelling cpf_or_cnpj --
-// still are, so a rule set compiled in a package-level variable that names
-// them by their constants keeps working. That registration is deprecated:
-// call Install, which declares those rules too, and compile the sets after
-// it.
+// that wires the application. The names the earlier releases registered when
+// this package was imported -- cpf, cnpj, cpf_or_cnpj, cep, celular and brl,
+// with cpf_ou_cnpj and celular_com_ddd beside them -- still are, so a rule set
+// compiled in a package-level variable that names RuleCPF, RuleCNPJ,
+// RuleCPFOrCNPJ, RuleCEP, RuleMobile or RuleBRL keeps working. That
+// registration at import is deprecated: call Install, which declares those
+// rules too, and compile the sets after it.
 //
 // Each rule accepts only a string -- a document sent as a JSON number has
 // already lost its leading zeros -- and a blank value is left to required or
@@ -204,8 +204,7 @@ func Messages(locale string) map[string]string {
 // bootstrap/app.go, with the factory the application builds -- and before the
 // rule sets that name these rules are compiled. A name already in the
 // catalogue is left as it is, so calling Install a second time, or after the
-// import-time registration of the seven earlier rules, registers nothing
-// twice. A nil factory registers the rules in the catalogue without the
+// registration at import of the earlier names, registers nothing twice. A nil factory registers the rules in the catalogue without the
 // fillers, so a rule that takes an argument says its placeholder as written.
 //
 // The sentences are the default: a line the application's translations hold

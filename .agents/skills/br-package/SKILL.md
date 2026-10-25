@@ -1,6 +1,6 @@
 ---
 name: br-package
-description: Validate and format Brazilian values in an Arandu application with the Arandu BR package (Go, github.com/hyz-is/arandu-br). Use when the request is to "validate a CPF", "validate a CNPJ", "accept CPF or CNPJ", "the alphanumeric CNPJ", "validate a CEP", "format a CPF", "mask the CNPJ", "format money in reais", "R$ 1.234,56", "R$ 1234,56 without the dot", "R$ 47 without the centavos", "parse an amount in reais", "read the budget the user typed", "mask the CPF", "hide the CPF", "***.456.789-**", "format the date as dd/mm/yyyy", "list the states", "a select of UFs", "go get github.com/hyz-is/arandu-br", "unknown rule cpf", "rule cpf is already in the catalogue", "the CPF with spaces is refused", or when the application has its own NormalizeCPF, ValidCPF, FormatCNPJ, maskCPF, MaskedCPF, maskCNPJ, ParseBRL or BRL formatter, or when a project's go.mod already requires github.com/hyz-is/arandu-br. Covers the six validation rules and why they are named by constant, the Parse functions and what they accept, ParseBRL, storing the bare spelling, the formatters, BRL, FormatBRL and Date, RedactCPF and RedactCNPJ, the UF enum, and the symptoms that mean something is wired wrong.
+description: Validate and format Brazilian values in an Arandu application with the Arandu BR package (Go, github.com/hyz-is/arandu-br). Use when the request is to "validate a CPF", "validate a CNPJ", "accept CPF or CNPJ", "the alphanumeric CNPJ", "validate a CEP", "format a CPF", "mask the CNPJ", "format money in reais", "R$ 1.234,56", "R$ 1234,56 without the dot", "R$ 47 without the centavos", "parse an amount in reais", "read the budget the user typed", "mask the CPF", "hide the CPF", "***.456.789-**", "format the date as dd/mm/yyyy", "list the states", "a select of UFs", "go get github.com/hyz-is/arandu-br", "unknown rule cpf", "rule cpf is already in the catalogue", "the CPF with spaces is refused", "validate a placa", "validate a telefone", "formato_cep", "celular_com_ddd", "inscricao_estadual", "validate a NIS, CNS, CNH, RENAVAM or titulo de eleitor", "br.Install", or when the application has its own NormalizeCPF, ValidCPF, FormatCNPJ, maskCPF, MaskedCPF, maskCNPJ, ParseBRL or BRL formatter, or when a project's go.mod already requires github.com/hyz-is/arandu-br. Covers the validation rules of the PHP packages, `br.Install`, why they are named by constant and compiled after it, the Parse functions and what they accept, ParseBRL, storing the bare spelling, the formatters, BRL, FormatBRL and Date, RedactCPF and RedactCNPJ, the UF enum, and the symptoms that mean something is wired wrong.
 license: MIT
 metadata:
   audience: app
@@ -9,11 +9,12 @@ metadata:
 # Using Arandu BR
 
 A library of Brazilian values: the CPF, the CNPJ (numeric and alphanumeric), the
-CEP, the mobile number, amounts in reais, dates, and the twenty-seven federative
-units, and a CPF or a CNPJ with part of it hidden. It has no
-route, no table and no policy, so nothing about it goes in `bootstrap/app.go`:
-there is no `New`, no line in `k.Register` and no `aru migrate`. Import it and
-call it.
+CEP, the telephone numbers, the other documents with check digits, the vehicle
+plate, amounts in reais, dates, and the twenty-seven federative units, and a CPF
+or a CNPJ with part of it hidden. It has no route, no table and no policy, so
+the only line it adds to `bootstrap/app.go` is `br.Install(validators)`: there
+is no `New`, no line in `k.Register` and no `aru migrate`. Import it, install its
+rules, and call it.
 
 ## Install
 
@@ -34,7 +35,8 @@ that drifts, and `aru doctor` reports a reimplemented helper.
 | --- | --- |
 | `NormalizeCPF`, `ValidCPF`, `FormatCPF` | `br.ParseCPF`, `br.ValidCPF`, `br.CPF` |
 | the same for the CNPJ and the CEP | `br.ParseCNPJ`, `br.ValidCNPJ`, `br.CNPJ`; `br.ParseCEP`, `br.ValidCEP`, `br.CEP` |
-| a hand check before `ctx.Validate` | a rule in the rule set, named by its constant |
+| a hand check before `ctx.Validate`, a `MustCompile` of a CPF, CNPJ, CEP, phone or plate regexp | a rule in the rule set, named by its constant |
+| a local `ValidatePlate`, `ValidateCNH`, `ValidatePIS`, `ValidateRenavam`, a phone regexp | `br.ParsePlate`, `br.ParseCNH`, `br.ParseNIS`, `br.ParseRenavam`, `br.ParseLocalMobile` and the other `Parse` functions, and the rule of the same document |
 | a BRL formatter, or `number.WithLocale("pt-BR", ...)` around a currency call | `br.BRL(cents)` |
 | `fmt.Sprintf("R$ %d,%02d", ...)`, a price printed as `R$ 47` | `br.FormatBRL(cents, br.BRLFormat{WithoutGrouping: true})`, `br.FormatBRL(cents, br.BRLFormat{WithoutZeroCents: true})` |
 | a `ParseBRL`, `parseBRLCents` or any reader of an amount typed in reais | `br.ParseBRL(s)`, and `br.RuleBRL` in the rule set |
@@ -46,43 +48,66 @@ below.
 
 ## Validate a form
 
-The package registers `cpf`, `cnpj`, `cpf_or_cnpj`, `cep`, `celular` and `brl`
-with `hesape/validation` when it is initialized (`br.RuleCPF`, `br.RuleCNPJ`,
-`br.RuleCPFOrCNPJ`, `br.RuleCEP`, `br.RuleMobile`, `br.RuleBRL`). A rule set names them by constant,
-in the package-level variable where every rule set lives:
+The rules are the names of the PHP packages `geekcom/validator-docs` and
+`laravellegends/pt-br-validator`: `cpf`, `cnpj`, `cpf_ou_cnpj`, `cep`,
+`celular`, `celular_com_ddd`, `celular_com_codigo`, `telefone`,
+`telefone_com_ddd`, `ddd`, `placa`, `renavam`, `cnh`, `titulo_eleitor`, `nis`,
+`pis`, `cns`, `certidao`, `uf`, `passaporte`, `inscricao_estadual:UF`, `data`,
+`horario`, `brl`, and the `formato_cpf`, `formato_cnpj`, `formato_cep` family
+that checks the spelling alone. `br.Rules()` lists them with what each accepts
+and its pt-BR sentence. The application installs them once, where it is wired:
+
+```go
+validators := validation.NewFactory(translator)
+br.Install(validators)
+```
+
+and compiles the rule sets after that call, naming the rules by constant:
 
 ```go
 var StoreCustomer = validation.MustCompile(validation.Rules{
 	"document": "required|" + br.RuleCPFOrCNPJ,
-	"postcode": "required|" + br.RuleCEP,
+	"postcode": "required|" + br.RuleCEPFormat,
+	"phone":    "required|" + br.RuleMobile,
 })
 ```
 
-**Write the constant, never the word.** A rule set is compiled before `main`,
-and a rule exists only once this package's `init` has run. Naming
-`br.RuleCPFOrCNPJ` imports the package into the file that declares the set, and
-Go runs an imported package's `init` before the importer's variables. The bare
-word `"cpf_or_cnpj"`, in a package that does not import this one, may be
-compiled first.
+The string form works the same, `"required|cpf"`, and so does mixing these rules
+with the standard ones.
+
+**Write the constant, never the word.** `br.RuleCPFOrCNPJ` is checked by the
+compiler; `"cpf_ou_cnpj"` is a string nothing checks, and `cpf_or_cnpj`,
+`cpf_cnpj` and the other aliases are the same rule under older names.
 
 **Symptom to recognise:** the application panics at boot naming an unknown rule
-`cpf`, `cnpj`, `cpf_or_cnpj`, `cep`, `celular` or `brl`. The rule set spells the word; spell the
-constant.
+`formato_cep`, `placa` or any other from the list. The rule set is compiled in a
+package-level variable, before `br.Install` ran. Compile it in the function that
+wires the application, after the call. The rules this package registered at
+import in the earlier releases -- `cpf`, `cnpj`, `cpf_or_cnpj`, `cpf_ou_cnpj`,
+`cep`, `celular`, `celular_com_ddd` and `brl` -- still are, deprecated, so an
+old package-level set that names one of the six constants keeps compiling.
+
+**Symptom to recognise:** `celular` refuses a number with its area code. In this
+release `celular` is the number without the area code, as in the PHP packages;
+the one with it is `celular_com_ddd`, which is what `br.RuleMobile` holds.
 
 **Symptom to recognise:** `validation: rule cpf is already in the catalogue`.
 The application registers its own `cpf` rule with `validation.Extend`. Delete
 it: this package's is the one.
 
-Each rule takes no argument — `cpf:strict` refuses every value — and only a
-string, so a document sent as a JSON number fails. A blank value is not
-checked; write `required` or `nullable` beside it.
+Each rule takes no argument -- `cpf:strict` refuses every value; only
+`inscricao_estadual` takes one, the unit -- and only a string, so a document sent
+as a JSON number fails. A blank value is not checked; write `required` or
+`nullable` beside it.
 
-The default sentences are English: `is not a valid CPF`, `is not a valid
-CNPJ`, `is not a valid CPF or CNPJ`, `is not a valid CEP`, `is not a valid
-mobile number`, `is not a valid amount in reais`. Put the application's own
-under `validation.cpf`, `validation.cnpj`, `validation.cpf_or_cnpj`,
-`validation.cep`, `validation.celular` and `validation.brl` in its
-translations.
+The sentences are Portuguese with the attribute, `O campo documento não é um
+CPF válido.` Put the application's own under `validation.cpf`,
+`validation.formato_cep` and so on in its translations; `br.Messages("pt-BR")`
+returns every default by rule name.
+
+A CPF and a CNPJ are **text**: keep them as strings from the form to a `text`
+column, or they lose their leading zeros, and the alphanumeric CNPJ is not a
+number at all.
 
 ## Take the value in, and store it bare
 
@@ -116,6 +141,10 @@ The value bare, or in its one conventional punctuation, and nothing else:
 | CEP | `00000000` | `00000-000` |
 
 Not whitespace around it, not another separator, not a separator out of place.
+The other documents follow the same rule with their own punctuation -- the NIS
+`000.00000.00-0`, the CNS `000 0000 0000 0000`, a landline `(00) 0000-0000` -- and
+the README lists each `Parse` function with what it returns. The PHP packages
+forgive every character that is not a digit; these do not.
 
 **Symptom to recognise:** a document pasted with a trailing space is refused.
 That is deliberate. If the form should forgive it, trim in the request before

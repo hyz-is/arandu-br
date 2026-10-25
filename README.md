@@ -5,12 +5,16 @@
 # Arandu BR
 
 The Brazilian values an Arandu application takes from a form and prints on a
-page: the CPF, the CNPJ (numeric and alphanumeric), the CEP, the mobile number, an amount in reais,
-a date, and the federative unit — and a CPF or a CNPJ with part of it hidden.
+page: the CPF, the CNPJ (numeric and alphanumeric), the CEP, the telephone
+numbers, the documents with check digits (NIS, CNS, CNH, RENAVAM, título de
+eleitor, certidão, the state registration), the vehicle plate, an amount in
+reais, a date, and the federative unit — and a CPF or a CNPJ with part of it
+hidden.
 
 It is a library. It registers no route, owns no table and decides no
-authorization, so there is nothing to wire in `bootstrap/app.go`, nothing to
-construct, and no `aru migrate` to run. An application imports it and calls it.
+authorization, so there is nothing to construct and no `aru migrate` to run. An
+application imports it, calls it, and installs its validation rules with one
+call, `br.Install`, where it is wired in `bootstrap/app.go`.
 
 ## Install
 
@@ -27,46 +31,110 @@ capability: no network, no filesystem, no process, no migration.
 
 ## Validate a form
 
-The package registers six rules with `hesape/validation` when it is
-initialized. Name them by their constants:
+The rules are declared as plain values, `br.Rules()`, and installed by one
+explicit call where the application is wired. There is nothing to register at
+import and no `init` to order:
 
 ```go
+validators := validation.NewFactory(translator)
+br.Install(validators)
+
 var StoreCustomer = validation.MustCompile(validation.Rules{
 	"cpf":      "required|" + br.RuleCPF,
 	"cnpj":     "nullable|" + br.RuleCNPJ,
 	"document": "required|" + br.RuleCPFOrCNPJ,
-	"postcode": "required|" + br.RuleCEP,
+	"postcode": "required|" + br.RuleCEPFormat,
+	"phone":    "required|" + br.RuleMobile,
+	"state":    "required|" + br.RuleStateRegistration + ":SP",
 })
 ```
 
-| constant | rule | accepts |
+`Install` registers every rule and alias with its pt-BR sentence, and a
+`validation.<rule>` line in the application's translations is read before that
+sentence. The rule sets that name them are compiled after it, from the function
+that wires the application. A rule set compiled in a package-level variable
+runs before `main` and fails at boot with an unknown rule; the exception is
+the eight names this package still registers when it is imported (below).
+
+The names are those of `geekcom/validator-docs` and
+`laravellegends/pt-br-validator`, so a rule set written for either reads the
+same, and the string form works: `"required|cpf"`.
+
+| rule | constant | accepts |
 | --- | --- | --- |
-| `br.RuleCPF` | `cpf` | a CPF, `00000000000` or `000.000.000-00` |
-| `br.RuleCNPJ` | `cnpj` | a CNPJ, `00000000000000` or `00.000.000/0000-00`, letters allowed in the first twelve positions |
-| `br.RuleCPFOrCNPJ` | `cpf_or_cnpj` | either of the two |
-| `br.RuleCEP` | `cep` | a CEP, `00000000` or `00000-000` |
-| `br.RuleMobile` | `celular` | a mobile number, `00000000000`, `(00) 00000-0000` or `(00)00000-0000`, with a real area code and the leading 9 |
-| `br.RuleBRL` | `brl` | an amount in reais, as `ParseBRL` reads it |
+| `cpf` | `br.RuleCPF` | a CPF, `00000000000` or `000.000.000-00` |
+| `cnpj` | `br.RuleCNPJ` | a CNPJ, numeric or alphanumeric, `00000000000000` or `00.000.000/0000-00` |
+| `cpf_ou_cnpj` (`cpf_or_cnpj`, `cpf_cnpj`) | `br.RuleCPFOrCNPJ` | either of the two |
+| `cep` | `br.RuleCEP` | a CEP, `00000000` or `00000-000`, not below `01000-000` |
+| `formato_cpf`, `formato_cnpj`, `formato_cpf_ou_cnpj` (`formato_cpf_cnpj`), `formato_cep` | `br.RuleCPFFormat`, `br.RuleCNPJFormat`, `br.RuleCPFOrCNPJFormat`, `br.RuleCEPFormat` | the punctuated shape alone, whatever the digits: `000.000.000-00`, `00.000.000/0000-00`, `00000-000` or `00.000-000` |
+| `celular` | `br.RuleLocalMobile` | a mobile number without the area code, `91234-5678` or `912345678` |
+| `celular_com_ddd` | `br.RuleMobile` | `(11) 91234-5678`, `(11)91234-5678` or `11912345678`, with a real area code |
+| `celular_com_codigo` | `br.RuleMobileWithCountry` | `+55(11)91234-5678`, `+55 (11) 91234-5678` or `+5511912345678` |
+| `celular_com_codigo_sem_mascara` | `br.RuleMobileWithCountryBare` | `+5511912345678` or `+55 11 912345678` |
+| `telefone`, `telefone_com_ddd`, `telefone_com_codigo` | `br.RuleLocalLandline`, `br.RuleLandline`, `br.RuleLandlineWithCountry` | a landline number, `3000-0000`, `(11) 3000-0000`, `+55(11)3000-0000` |
+| `ddd` | `br.RuleAreaCode` | one of the 67 area codes Anatel assigns |
+| `placa` | `br.RulePlate` | any plate Brazil issued, the Mercosul one included, `ABC-1234`, `ABC1D23` |
+| `formato_placa_de_veiculo` | `br.RulePlateFormat` | three letters, a hyphen or none, a digit, a digit or a letter, two digits |
+| `renavam` | `br.RuleRenavam` | nine to eleven digits with the RENAVAM check digit |
+| `cnh` | `br.RuleCNH` | the eleven digits of the register number, with the Denatran check digits |
+| `titulo_eleitor` | `br.RuleVoterTitle` | the digits of a título de eleitor, five to thirteen, with its state and check digits |
+| `nis`, `pis` | `br.RuleNIS`, `br.RulePIS` | `000.00000.00-0` or the eleven digits, with the check digit |
+| `formato_nis`, `formato_pis` | `br.RuleNISFormat`, `br.RulePISFormat` | `000.00000.00-0`, whatever the digits |
+| `cns` | `br.RuleCNS` | the fifteen digits of the Cartão Nacional de Saúde, definitive or provisional |
+| `certidao`, `formato_certidao` | `br.RuleCivilCertificate`, `br.RuleCivilCertificateFormat` | the thirty-two digits of a birth, marriage or death certificate, and their nine groups |
+| `uf` | `br.RuleUF` | one of the 27 codes, in capitals |
+| `inscricao_estadual:UF` | `br.RuleStateRegistration` | the state registration number of the unit, `inscricao_estadual:SP` |
+| `passaporte` | `br.RulePassport` | two letters and six digits |
+| `data`, `horario` | `br.RuleDate`, `br.RuleTimeOfDay` | `31/12/2026`, a day the month has; `15:04` or `15:04:05` |
+| `brl` (`moeda`) | `br.RuleBRL` | an amount in reais, as `ParseBRL` reads it |
 
-Write the constant, not the word it holds. A rule name exists once it is in the
-catalogue, and a rule set is compiled in a package-level variable, before
-`main`. Naming `br.RuleCPF` imports this package into the file that declares
-the set, and Go initializes an imported package before the variables of the one
-importing it, so the rules are registered before the set is compiled. The word
-`"cpf"` in a package that does not import this one may be compiled first, and
-then the application refuses to boot with an unknown rule.
+Each rule checks what the matching `Parse` function checks, and only a string:
+a CPF sent as a JSON number has already lost its leading zeros. A blank value is
+left to `required` or `nullable`. A rule written with an argument it does not
+take refuses every value (`cpf:strict`), and `inscricao_estadual` takes exactly
+one, the unit, in either case.
 
-Each rule checks what the matching `Parse` function checks, takes no argument
-(`cpf:anything` refuses every value) and only a string: a CPF sent as a JSON
-number has already lost its leading zeros. A blank value is left to `required`
-or `nullable`.
+A failure reads as the PHP packages' sentences do, in Portuguese, with the
+attribute: `O campo documento não é um CPF válido.` An application names its own
+sentence under `validation.cpf`, `validation.cnpj`, `validation.formato_cep`
+and so on in its translations, which `hesape/validation` reads before the
+default; `br.Messages("pt-BR")` returns every default, by rule name, for an
+application that loads them into its language files.
 
-A failure reads `is not a valid CPF` (`CNPJ`, `CPF or CNPJ`, `CEP`, `mobile
-number`, `amount in reais`). An application that speaks Portuguese names its
-own sentence under `validation.cpf`, `validation.cnpj`,
-`validation.cpf_or_cnpj`, `validation.cep`, `validation.celular` and
-`validation.brl` in its translations, which `hesape/validation` reads before
-the default.
+### Where it is narrower than the PHP packages
+
+Both packages remove every character that is not a digit before checking. This
+package takes a value bare or in its one conventional punctuation, so a form
+never stores what the person did not type; trim or re-punctuate in the request
+if the form should forgive it. Beyond that, a value the PHP rules accept and
+these refuse:
+
+| rule | refused here | why |
+| --- | --- | --- |
+| `cpf`, `cnpj`, `nis`, `cns`, `titulo_eleitor` and the rest | `094 050 986 59`, ` 094.050.986-59` | only the bare or the one punctuated spelling |
+| `celular`, `celular_com_ddd` | `9800-1936`, `(31)9999-5555` | an eight-digit number is not a mobile number since 2016; it is a `telefone` |
+| `celular_com_codigo`, `telefone_com_codigo` | `+1(31)99999-5555`, `+66(31)9999-5555` | the number is checked against Brazil's plan, so the code is `+55` |
+| `cns` | a definitive card that begins with 0 or 3 to 6 | laravellegends computes it; a definitive card begins with 1 or 2 |
+| `nis`, `pis` | a number shorter than eleven digits | geekcom pads it with zeros; a leading zero is a digit |
+| `renavam` | `1970.73212`, `00000000000` | only digits; a repetition has no owner |
+| `inscricao_estadual` | `8 2__6-7*9.3/41`, `00000000000` for MT | only dots, hyphens and slashes between digits; a repetition has no owner |
+| `cnh` | — | laravellegends' arithmetic lacks the Denatran's correction and refuses 1 valid number in 40; the correct one is used |
+| `placa` | — | `AAA12A3` passes `placa` (geekcom) and not `formato_placa_de_veiculo` (laravellegends) |
+
+Examples the PHP packages test with are rewritten as data in
+`tests/Unit/rule_examples_test.go`, and the ones refused here carry the reason.
+
+### The import-time registration is deprecated
+
+Until this release the package registered `cpf`, `cnpj`, `cpf_or_cnpj`, `cep`,
+`celular` and `brl` when it was imported. It still does, now with `cpf_ou_cnpj`
+and `celular_com_ddd` beside them, so a rule set compiled in a package-level
+variable that names `br.RuleCPF`, `br.RuleCNPJ`, `br.RuleCPFOrCNPJ`,
+`br.RuleCEP`, `br.RuleMobile` or `br.RuleBRL` keeps working. That registration
+goes in a later release: call `br.Install`, and compile the sets after it.
+
+`celular` means the number without the area code now, as in the PHP packages;
+what it was is `celular_com_ddd`. `UPGRADE.md` says what to search for.
 
 ## Take a value in
 
@@ -104,6 +172,37 @@ call.
 `CPFCheckDigits` and `CNPJCheckDigits` compute the check digits of a base, which
 is what a seeder or a factory needs to write a valid document without borrowing
 somebody's.
+
+A CPF and a CNPJ are **text**, from the form to the column. A document read as
+a number has lost its leading zeros (`00000000191` becomes `191`), and the
+alphanumeric CNPJ cannot be a number at all. Declare the column `text` (or
+`varchar`), never an integer, and take the value with `in.String`. For text that
+already left the form, `NormalizeCPF` keeps the digits of a string and
+`NormalizeCNPJ` keeps the digits and the letters, in capitals, so a stored
+`12.abc.345/01de-35` compares with `12ABC34501DE35`; neither validates, and
+`ParseCPF` and `ParseCNPJ` are what take a value in.
+
+The other values follow the same shape, a `Parse` function that returns the
+bare spelling or an `Err…` and a `Valid` function beside it:
+
+| value | function | returns | an error |
+| --- | --- | --- | --- |
+| mobile number with area code | `ParseMobile` | 11 digits | `ErrInvalidMobile` |
+| mobile number without it, or with `+55` | `ParseLocalMobile`, `ParseMobileWithCountry` | 9 digits, `55` and 11 digits | `ErrInvalidMobile` |
+| landline | `ParseLandline`, `ParseLocalLandline`, `ParseLandlineWithCountry` | 10, 8, `55` and 10 digits | `ErrInvalidLandline` |
+| area code | `ParseAreaCode` | 2 digits | `ErrInvalidAreaCode` |
+| NIS, PIS | `ParseNIS` | 11 digits | `ErrInvalidNIS` |
+| Cartão Nacional de Saúde | `ParseCNS` | 15 digits | `ErrInvalidCNS` |
+| CNH | `ParseCNH` | 11 digits | `ErrInvalidCNH` |
+| RENAVAM | `ParseRenavam` | 11 digits, the zeros of an older number put back | `ErrInvalidRenavam` |
+| título de eleitor | `ParseVoterTitle` | its digits | `ErrInvalidVoterTitle` |
+| certidão | `ParseCivilCertificate` | 32 digits | `ErrInvalidCivilCertificate` |
+| vehicle plate | `ParsePlate` | in capitals, no hyphen | `ErrInvalidPlate` |
+| passport | `ParsePassport` | in capitals | `ErrInvalidPassport` |
+| inscrição estadual | `ParseStateRegistration(uf, s)` | its digits | `ErrInvalidStateRegistration` |
+| day, time of day | `ParseDate`, `ParseTimeOfDay` | `time.Time` at midnight UTC, `time.Duration` since midnight | `ErrInvalidDate`, `ErrInvalidTimeOfDay` |
+
+`NIS`, `CNS` and `Landline` punctuate a stored value like `CPF`.
 
 ### An amount in reais
 
@@ -237,8 +336,16 @@ cpf.go, cnpj.go, cep.go   parsing, check digits and punctuation
 mobile.go                 the mobile number
 shape.go                  the masks they share
 redact.go                 RedactCPF, RedactCNPJ and the Redaction type
-rules.go                  the hesape/validation rules
-money.go, date.go         BRL, FormatBRL, BRLDecimal, ParseBRL, Date and DateTime
+rules.go, catalog.go      Rule, Rules, Install and the rule names
+phone.go                  the landline, the area code and the other spellings of a number
+nis.go, cns.go, cnh.go    the documents with check digits
+renavam.go, voter.go
+certificate.go
+plate.go                  the vehicle plate and the passport
+stateregistration.go      the state registration number of the 27 units
+normalize.go              NormalizeCPF and NormalizeCNPJ
+masked.go                 the checks of the formato_ rules
+money.go, date.go         BRL, FormatBRL, BRLDecimal, ParseBRL, Date, DateTime, ParseDate, ParseTimeOfDay
 uf.go                     the UF enum
 ```
 
