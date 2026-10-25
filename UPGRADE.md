@@ -1,6 +1,6 @@
 # Upgrade Guide
 
-## Unreleased: v0.5.0
+## v0.5.0
 
 A minor release. It adds the rest of the Brazilian rules under the names the PHP
 packages `geekcom/validator-docs` and `laravellegends/pt-br-validator` use, and
