@@ -5,11 +5,11 @@
 # compares these four lines with what the code calls.
 
 name = "hyz-is/br"
-# This package imports no framework package; it requires Hesape v0.54.0, and
-# Framework v0.56.0 is the first release built on that Hesape. The floor names
-# its minor, 0.56. An application on an older Framework would have its Hesape
+# This package imports no framework package; it requires Hesape v0.85.0, and
+# Framework v0.66.0 is the first release built on that Hesape. The floor names
+# its minor, 0.66. An application on an older Framework would have its Hesape
 # raised past the one it was built with by installing this.
-framework = ">= 0.56"
+framework = ">= 0.66"
 profiles = ["conventional", "performance"]
 
 [permissions]
