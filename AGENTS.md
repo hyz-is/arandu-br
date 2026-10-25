@@ -79,7 +79,7 @@ stateregistration.go      the state registration number of the 27 units
 normalize.go              NormalizeCPF and NormalizeCNPJ
 shape.go, masked.go       the masks they share, and the checks of the formato_ rules
 redact.go                 RedactCPF, RedactCNPJ and the Redaction type
-rules.go, catalog.go      Rule, Rules, Install, the rule names and the init of the deprecated registration
+rules.go, catalog.go      Rules (the Provider), Defs, Install, the rule names and the init of the deprecated registration
 money.go, date.go         BRL, FormatBRL, ParseBRL, Date, DateTime, ParseDate and ParseTimeOfDay
 uf.go                     the UF enum
 ```
@@ -89,8 +89,8 @@ uf.go                     the UF enum
 | A model reaches for | What is here instead |
 | --- | --- |
 | `New`, a `Module`, a `Config`, a line in `k.Register` | nothing. A caller imports the package and calls a function |
-| a second registration function beside `br.Install`, or a registry the package fills as it is imported | `br.Rules()`, plain values, and `br.Install(factory)`, called once by the application where it is wired. The `init` in `rules.go` registers only the eight names the earlier releases did, is deprecated, and `TestThePackageIsALibrary` refuses an `init` that does anything but `validation.Extend` |
-| the rule name `"cpf"` written in a rule set | `br.RuleCPF`. A rule set that names a rule `br.Install` declares is compiled after the call, from the function that wires the application |
+| a second registration function beside `br.Rules()`, or a registry the package fills as it is imported | `br.Defs()`, plain `validation.RuleDef` values, and `br.Rules()`, the `validation.Provider` the application passes to `factory.Use` where it is wired. `br.Install` is a deprecated call to `Use`. The `init` in `rules.go` registers only the eight names the earlier releases did, is deprecated, and `TestThePackageIsALibrary` refuses an `init` that does anything but `validation.Extend` |
+| the rule name `"cpf"` written in a rule set | `br.RuleCPF`. A rule set in a package-level variable that names a rule `Use` declares is compiled with `validation.WithModuleRules()` and checked with `Factory.Check` at boot |
 | a rule of the package that accepts what only one PHP package accepts, and a rule that forgives punctuation | one reading per rule, in `UPGRADE.md` and the README, and the value bare or in its one punctuation |
 | trimming, re-punctuating, or accepting any separator | the one conventional mask or the bare value, nothing else. A value the person did not type is a value nobody can explain |
 | a lookup at the Receita Federal or the Correios | nothing. `network = false`; a validator that calls out fails when the network does |

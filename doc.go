@@ -5,7 +5,7 @@
 //
 // It is a library. It registers no route, owns no table and decides no
 // authorization, so nothing about it goes in bootstrap/app.go but one call to
-// Install: a caller imports it and calls it.
+// Factory.Use: a caller imports it and calls it.
 //
 // # Taking a value in
 //
@@ -34,15 +34,16 @@
 // packages geekcom/validator-docs and laravellegends/pt-br-validator: cpf,
 // cnpj, cpf_ou_cnpj, cep, celular, celular_com_ddd, telefone, placa, renavam,
 // cnh, titulo_eleitor, nis, cns, certidao, uf, inscricao_estadual:SP, data,
-// horario, brl and the formato_ rules, which check a spelling alone. Rules
-// lists them as plain values -- the name, the aliases, the check, the arguments
-// and the pt-BR sentence with :attribute -- and Install puts them in the
-// catalogue, once, where the application is wired:
+// horario, brl and the formato_ rules, which check a spelling alone. Defs
+// lists them as validation.RuleDef values -- the name, the aliases, the check,
+// the arguments and the pt-BR sentence with :attribute -- and Rules is the
+// validation.Provider that declares them to the Factory the application builds,
+// once, where it is wired:
 //
-//	br.Install(factory)
+//	factory.Use(br.Rules())
 //
-// The rule sets that name them are compiled after that call. Each rule has a
-// constant:
+// A rule set compiled before the Factory exists, in a package-level variable,
+// is compiled with validation.WithModuleRules. Each rule has a constant:
 //
 //	rules := validation.Rules{
 //		"document": "required|" + br.RuleCPFOrCNPJ,
@@ -51,9 +52,10 @@
 //	}
 //
 // Importing this package still registers cpf, cnpj, cpf_or_cnpj, cpf_ou_cnpj,
-// cep, celular, celular_com_ddd and brl, so that a rule set compiled in a
-// package-level variable keeps finding them. That registration is deprecated
-// and goes in a later release; Install registers the same names.
+// cep, celular, celular_com_ddd and brl, so that a rule set that names them
+// compiles without a Factory. That registration is deprecated and goes in a
+// later release; Rules declares the same names, and Install, which calls
+// Factory.Use, is deprecated too.
 //
 // # Printing a value
 //
@@ -82,7 +84,7 @@
 //	normalize.go             -> NormalizeCPF and NormalizeCNPJ
 //	shape.go, masked.go      -> the masks they share, and the formato_ checks
 //	redact.go                -> RedactCPF, RedactCNPJ and Redaction
-//	rules.go, catalog.go     -> Rule, Rules, Install and the rule names
+//	rules.go, catalog.go     -> Rules, Defs, Install and the rule names
 //	money.go, date.go        -> BRL, FormatBRL, BRLDecimal, ParseBRL, Date, DateTime,
 //	                            ParseDate and ParseTimeOfDay
 //	uf.go                    -> the UF enum

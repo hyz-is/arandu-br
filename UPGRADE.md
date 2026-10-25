@@ -1,5 +1,112 @@
 # Upgrade Guide
 
+## Unreleased: v0.6.0
+
+A minor release that breaks the registration API of v0.5.0 on purpose, to match
+the one `hesape/validation` v0.88.0 provides for a module: the rules are a
+`validation.Provider`, and the application hands it to the Factory it builds.
+`apidiff` against `v0.5.0` reports `Rule` removed and `Rules` changed from
+`func() []Rule` to `func() validation.Provider`, and nothing else incompatible.
+The rules, their names, their aliases and what they accept are unchanged.
+
+The package requires Hesape `v0.88.0` (was `v0.85.0`):
+
+```bash
+go get github.com/arandu-io/hesape@v0.88.0
+```
+
+`arandu.mod.toml` keeps `framework = ">= 0.66"`: no Framework release is built
+on that Hesape yet, so there is no higher floor to name. An application whose
+Framework does not hand a `validation.Factory` to the request still builds the
+Factory itself, as below.
+
+### Use the module on the Factory
+
+```go
+validators := validation.NewFactory(validation.FromTranslation(tr))
+validators.Use(br.Rules())
+```
+
+`br.Install(validators)` is that call and is deprecated: it does nothing else,
+and it ignores a nil factory, where v0.5.0 registered the rules in the
+process-wide catalogue for one. Replace it:
+
+```bash
+grep -rn 'br\.Install' --include='*.go' .
+```
+
+The module declares its rules in the registry of the Factory it was handed to.
+Nothing is registered before the application calls `Use`, in an `init` or
+anywhere else, and a second Factory has its own registry.
+
+### Rules and Defs
+
+`br.Rules()` was the list of the rules; it is the Provider now, and the list is
+`br.Defs()`, a `[]validation.RuleDef`:
+
+| v0.5.0 | v0.6.0 |
+| --- | --- |
+| `br.Rules()` returned `[]br.Rule` | `br.Defs()` returns `[]validation.RuleDef` |
+| `rule.Name`, `rule.Aliases` | the same fields |
+| `rule.Check(value, parameters)` | `def.Check(validator, attribute, value, parameters)`, a `validation.ExtensionFunc` |
+| `rule.Parameters` | `def.Params`, a `validation.Params{Min, Max}` |
+| `rule.Messages["pt-BR"]`, `rule.Message(locale)` | `def.Messages["pt-BR"]`; `br.Messages(locale)` still lists them by name |
+| `rule.Replace(message, parameters)` | `def.Replace`, a `validation.ReplacerFunc` |
+| `rule.Extension()` | `def.Check` |
+| `rule.Names()` | `append([]string{def.Name}, def.Aliases...)` |
+
+Find the uses:
+
+```bash
+grep -rnE 'br\.(Rules|Rule)\b' --include='*.go' .
+```
+
+### Rule sets that name the rules
+
+A rule set compiled in a package-level variable names a rule before any Factory
+exists. Compile it with `validation.WithModuleRules()`, and check the sets at
+boot, after `Use`, with the Factory:
+
+```go
+var StoreCustomer = validation.MustCompile(validation.Rules{
+	"cpf":      []any{"required", "cpf"},
+	"postcode": "required|formato_cep",
+}, validation.WithModuleRules())
+
+if err := validators.Check(StoreCustomer); err != nil {
+	return err // names the field, the rule and the file of every rule nothing declares
+}
+```
+
+A request type that declares `Rules()` is compiled by the Factory, after `Use`,
+and needs neither. This replaces v0.5.0's instruction to compile the sets after
+`Install`.
+
+### What changed in how a rule is written
+
+- **An argument is a boot failure.** A rule that takes none does not compile
+  with one: `cpf:strict` is refused when the set is compiled, where v0.5.0
+  compiled it and refused every value. The eight names registered when the
+  package is imported (below) are the exception, and keep refusing every value.
+- **`inscricao_estadual` is checked when it is compiled.** It takes one
+  argument, the code of a unit: `inscricao_estadual:SP`. Without one, or with a
+  code that is not one of the twenty-seven, the set does not compile.
+- **The sentence is chosen by the locale of the request**, and a line the
+  application defines under `validation.<rule>` is read before it. Every rule
+  declares a pt-BR sentence only, as the PHP packages do.
+
+### The registration at import
+
+The eight names the earlier releases registered when the package is imported --
+`cpf`, `cnpj`, `cpf_or_cnpj`, `cpf_ou_cnpj`, `cep`, `celular`,
+`celular_com_ddd` and `brl` -- are still registered that way, deprecated, and
+`Use` leaves those names to it. They are in the process-wide catalogue, so they
+are not in the registry of the Factory, say their pt-BR sentence whatever the
+locale, and are not counted among `validators.Registry().Names()`. A later
+release removes the registration and declares them in the registry like the
+others; nothing in an application changes when it does, as long as it calls
+`Use`.
+
 ## v0.5.0
 
 A minor release. It adds the rest of the Brazilian rules under the names the PHP

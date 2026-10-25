@@ -13,8 +13,9 @@ hidden.
 
 It is a library. It registers no route, owns no table and decides no
 authorization, so there is nothing to construct and no `aru migrate` to run. An
-application imports it, calls it, and installs its validation rules with one
-call, `br.Install`, where it is wired in `bootstrap/app.go`.
+application imports it, calls it, and hands its validation rules to the
+Factory with one call, `factory.Use(br.Rules())`, where it is wired in
+`bootstrap/app.go`.
 
 ## Install
 
@@ -31,30 +32,32 @@ capability: no network, no filesystem, no process, no migration.
 
 ## Validate a form
 
-The rules are declared as plain values, `br.Rules()`, and installed by one
-explicit call where the application is wired. There is nothing to register at
-import and no `init` to order:
+The rules are a `validation.Provider`, `br.Rules()`, that the application hands
+to the Factory it builds, once, where it is wired. Nothing is registered before
+that call:
 
 ```go
-validators := validation.NewFactory(translator)
-br.Install(validators)
+validators := validation.NewFactory(validation.FromTranslation(tr))
+validators.Use(br.Rules())
 
 var StoreCustomer = validation.MustCompile(validation.Rules{
-	"cpf":      "required|" + br.RuleCPF,
+	"cpf":      []any{"required", br.RuleCPF},
 	"cnpj":     "nullable|" + br.RuleCNPJ,
 	"document": "required|" + br.RuleCPFOrCNPJ,
 	"postcode": "required|" + br.RuleCEPFormat,
 	"phone":    "required|" + br.RuleMobile,
 	"state":    "required|" + br.RuleStateRegistration + ":SP",
-})
+}, validation.WithModuleRules())
+
+err := validators.Check(StoreCustomer) // at boot: names any rule nothing declares
 ```
 
-`Install` registers every rule and alias with its pt-BR sentence, and a
-`validation.<rule>` line in the application's translations is read before that
-sentence. The rule sets that name them are compiled after it, from the function
-that wires the application. A rule set compiled in a package-level variable
-runs before `main` and fails at boot with an unknown rule; the exception is
-the eight names this package still registers when it is imported (below).
+`Use` declares every rule and alias, each as a `validation.RuleDef` with its
+pt-BR sentence, and a `validation.<rule>` line in the application's
+translations is read before that sentence. `br.Defs()` returns the
+declarations. A rule set compiled in a package-level variable runs before the
+Factory exists, so it is compiled with `validation.WithModuleRules()` and
+resolved by the Factory; a request type that declares `Rules()` needs neither.
 
 The names are those of `geekcom/validator-docs` and
 `laravellegends/pt-br-validator`, so a rule set written for either reads the
@@ -91,8 +94,9 @@ same, and the string form works: `"required|cpf"`.
 Each rule checks what the matching `Parse` function checks, and only a string:
 a CPF sent as a JSON number has already lost its leading zeros. A blank value is
 left to `required` or `nullable`. A rule written with an argument it does not
-take refuses every value (`cpf:strict`), and `inscricao_estadual` takes exactly
-one, the unit, in either case.
+take does not compile (`cpf:strict`; the eight names registered at import refuse
+every value instead), and `inscricao_estadual` takes exactly one, the code of a
+unit, in either case, and does not compile with another.
 
 A failure reads as the PHP packages' sentences do, in Portuguese, with the
 attribute: `O campo documento não é um CPF válido.` An application names its own
@@ -126,12 +130,12 @@ Examples the PHP packages test with are rewritten as data in
 
 ### The import-time registration is deprecated
 
-Until this release the package registered `cpf`, `cnpj`, `cpf_or_cnpj`, `cep`,
+Until v0.5.0 the package registered `cpf`, `cnpj`, `cpf_or_cnpj`, `cep`,
 `celular` and `brl` when it was imported. It still does, now with `cpf_ou_cnpj`
-and `celular_com_ddd` beside them, so a rule set compiled in a package-level
-variable that names `br.RuleCPF`, `br.RuleCNPJ`, `br.RuleCPFOrCNPJ`,
-`br.RuleCEP`, `br.RuleMobile` or `br.RuleBRL` keeps working. That registration
-goes in a later release: call `br.Install`, and compile the sets after it.
+and `celular_com_ddd` beside them, so a rule set that names them keeps compiling
+without a Factory. `Use` leaves those eight names to it. That registration goes
+in a later release; call `factory.Use(br.Rules())`. `br.Install(factory)` is
+that call under its old name, and is deprecated too.
 
 `celular` means the number without the area code now, as in the PHP packages;
 what it was is `celular_com_ddd`. `UPGRADE.md` says what to search for.
@@ -336,7 +340,7 @@ cpf.go, cnpj.go, cep.go   parsing, check digits and punctuation
 mobile.go                 the mobile number
 shape.go                  the masks they share
 redact.go                 RedactCPF, RedactCNPJ and the Redaction type
-rules.go, catalog.go      Rule, Rules, Install and the rule names
+rules.go, catalog.go      Rules, Defs, Install and the rule names
 phone.go                  the landline, the area code and the other spellings of a number
 nis.go, cns.go, cnh.go    the documents with check digits
 renavam.go, voter.go

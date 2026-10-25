@@ -1,6 +1,6 @@
 ---
 name: br-package
-description: Validate and format Brazilian values in an Arandu application with the Arandu BR package (Go, github.com/hyz-is/arandu-br). Use when the request is to "validate a CPF", "validate a CNPJ", "accept CPF or CNPJ", "the alphanumeric CNPJ", "validate a CEP", "format a CPF", "mask the CNPJ", "format money in reais", "R$ 1.234,56", "R$ 1234,56 without the dot", "R$ 47 without the centavos", "parse an amount in reais", "read the budget the user typed", "mask the CPF", "hide the CPF", "***.456.789-**", "format the date as dd/mm/yyyy", "list the states", "a select of UFs", "go get github.com/hyz-is/arandu-br", "unknown rule cpf", "rule cpf is already in the catalogue", "the CPF with spaces is refused", "validate a placa", "validate a telefone", "formato_cep", "celular_com_ddd", "inscricao_estadual", "validate a NIS, CNS, CNH, RENAVAM or titulo de eleitor", "br.Install", or when the application has its own NormalizeCPF, ValidCPF, FormatCNPJ, maskCPF, MaskedCPF, maskCNPJ, ParseBRL or BRL formatter, or when a project's go.mod already requires github.com/hyz-is/arandu-br. Covers the validation rules of the PHP packages, `br.Install`, why they are named by constant and compiled after it, the Parse functions and what they accept, ParseBRL, storing the bare spelling, the formatters, BRL, FormatBRL and Date, RedactCPF and RedactCNPJ, the UF enum, and the symptoms that mean something is wired wrong.
+description: Validate and format Brazilian values in an Arandu application with the Arandu BR package (Go, github.com/hyz-is/arandu-br). Use when the request is to "validate a CPF", "validate a CNPJ", "accept CPF or CNPJ", "the alphanumeric CNPJ", "validate a CEP", "format a CPF", "mask the CNPJ", "format money in reais", "R$ 1.234,56", "R$ 1234,56 without the dot", "R$ 47 without the centavos", "parse an amount in reais", "read the budget the user typed", "mask the CPF", "hide the CPF", "***.456.789-**", "format the date as dd/mm/yyyy", "list the states", "a select of UFs", "go get github.com/hyz-is/arandu-br", "unknown rule cpf", "rule cpf is already in the catalogue", "the CPF with spaces is refused", "validate a placa", "validate a telefone", "formato_cep", "celular_com_ddd", "inscricao_estadual", "validate a NIS, CNS, CNH, RENAVAM or titulo de eleitor", "br.Rules", "factory.Use", "br.Install", or when the application has its own NormalizeCPF, ValidCPF, FormatCNPJ, maskCPF, MaskedCPF, maskCNPJ, ParseBRL or BRL formatter, or when a project's go.mod already requires github.com/hyz-is/arandu-br. Covers the validation rules of the PHP packages, `factory.Use(br.Rules())`, why they are named by constant and how a package-level rule set names them, the Parse functions and what they accept, ParseBRL, storing the bare spelling, the formatters, BRL, FormatBRL and Date, RedactCPF and RedactCNPJ, the UF enum, and the symptoms that mean something is wired wrong.
 license: MIT
 metadata:
   audience: app
@@ -12,7 +12,7 @@ A library of Brazilian values: the CPF, the CNPJ (numeric and alphanumeric), the
 CEP, the telephone numbers, the other documents with check digits, the vehicle
 plate, amounts in reais, dates, and the twenty-seven federative units, and a CPF
 or a CNPJ with part of it hidden. It has no route, no table and no policy, so
-the only line it adds to `bootstrap/app.go` is `br.Install(validators)`: there
+the only line it adds to `bootstrap/app.go` is `validators.Use(br.Rules())`: there
 is no `New`, no line in `k.Register` and no `aru migrate`. Import it, install its
 rules, and call it.
 
@@ -54,22 +54,28 @@ The rules are the names of the PHP packages `geekcom/validator-docs` and
 `telefone_com_ddd`, `ddd`, `placa`, `renavam`, `cnh`, `titulo_eleitor`, `nis`,
 `pis`, `cns`, `certidao`, `uf`, `passaporte`, `inscricao_estadual:UF`, `data`,
 `horario`, `brl`, and the `formato_cpf`, `formato_cnpj`, `formato_cep` family
-that checks the spelling alone. `br.Rules()` lists them with what each accepts
-and its pt-BR sentence. The application installs them once, where it is wired:
+that checks the spelling alone. `br.Defs()` lists them, as `validation.RuleDef`
+values, with what each accepts and its pt-BR sentence, and `br.Rules()` is the
+`validation.Provider` that declares them. The application hands it to the
+Factory once, where it is wired:
 
 ```go
-validators := validation.NewFactory(translator)
-br.Install(validators)
+validators := validation.NewFactory(validation.FromTranslation(tr))
+validators.Use(br.Rules())
 ```
 
-and compiles the rule sets after that call, naming the rules by constant:
+A rule set in a package-level variable is compiled before the Factory exists, so
+it takes `validation.WithModuleRules()`, naming the rules by constant, and the
+application checks it at boot:
 
 ```go
 var StoreCustomer = validation.MustCompile(validation.Rules{
 	"document": "required|" + br.RuleCPFOrCNPJ,
-	"postcode": "required|" + br.RuleCEPFormat,
+	"postcode": []any{"required", br.RuleCEPFormat},
 	"phone":    "required|" + br.RuleMobile,
-})
+}, validation.WithModuleRules())
+
+err := validators.Check(StoreCustomer)
 ```
 
 The string form works the same, `"required|cpf"`, and so does mixing these rules
@@ -79,13 +85,17 @@ with the standard ones.
 compiler; `"cpf_ou_cnpj"` is a string nothing checks, and `cpf_or_cnpj`,
 `cpf_cnpj` and the other aliases are the same rule under older names.
 
-**Symptom to recognise:** the application panics at boot naming an unknown rule
-`formato_cep`, `placa` or any other from the list. The rule set is compiled in a
-package-level variable, before `br.Install` ran. Compile it in the function that
-wires the application, after the call. The rules this package registered at
-import in the earlier releases -- `cpf`, `cnpj`, `cpf_or_cnpj`, `cpf_ou_cnpj`,
-`cep`, `celular`, `celular_com_ddd` and `brl` -- still are, deprecated, so an
-old package-level set that names one of the six constants keeps compiling.
+**Symptom to recognise:** `validators.Check` fails at boot naming an unknown
+rule `formato_cep`, `placa` or any other from the list. The Factory never called
+`Use(br.Rules())`, or the rule set is compiled on another Factory. A panic at
+start naming the same rule in a package-level variable means the set was
+compiled without `validation.WithModuleRules()`. The rules this package
+registered at import in the earlier releases -- `cpf`, `cnpj`, `cpf_or_cnpj`,
+`cpf_ou_cnpj`, `cep`, `celular`, `celular_com_ddd` and `brl` -- still are,
+deprecated, so a set that names only those compiles without it.
+
+**Symptom to recognise:** `br.Install` is called. It is the same as `Use`, and
+deprecated: replace it with `validators.Use(br.Rules())`.
 
 **Symptom to recognise:** `celular` refuses a number with its area code. In this
 release `celular` is the number without the area code, as in the PHP packages;
@@ -95,7 +105,7 @@ the one with it is `celular_com_ddd`, which is what `br.RuleMobile` holds.
 The application registers its own `cpf` rule with `validation.Extend`. Delete
 it: this package's is the one.
 
-Each rule takes no argument -- `cpf:strict` refuses every value; only
+Each rule takes no argument -- `cpf:strict` does not compile; only
 `inscricao_estadual` takes one, the unit -- and only a string, so a document sent
 as a JSON number fails. A blank value is not checked; write `required` or
 `nullable` beside it.
