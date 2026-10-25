@@ -228,22 +228,43 @@ func TestTheChangelogAndTheUpgradeGuideAgreeOnTheVersion(t *testing.T) {
 	}
 }
 
+// unreleasedUpgrade is the section of UPGRADE.md for the release this working
+// tree is preparing, which is headed Unreleased until the changelog has its
+// entry; it is empty when there is none.
+func unreleasedUpgrade(t *testing.T) string {
+	t.Helper()
+	body := readReleaseFile(t, packageRoot(t), "UPGRADE.md")
+	start := regexp.MustCompile(`(?m)^## Unreleased`).FindStringIndex(body)
+	if start == nil {
+		return ""
+	}
+	rest := body[start[0]:]
+	if next := regexp.MustCompile(`(?m)^## v[0-9]`).FindStringIndex(rest); next != nil {
+		rest = rest[:next[0]]
+	}
+	return rest
+}
+
 // TestEveryRuleIsNamedInAReleasedChangelogEntry is the gate that catches a tag
 // pushed without filing what it shipped. A rule name is what an application
 // writes into a rule set, so a rule that went out undocumented is one nobody
 // knows to use -- and one whose rename nobody is warned about.
+//
+// A rule that is not released yet is named in the upgrade notes of the release
+// being prepared instead, and moves to the changelog entry when that is
+// written.
 func TestEveryRuleIsNamedInAReleasedChangelogEntry(t *testing.T) {
 	rules := readReleaseFile(t, packageRoot(t), "rules.go")
-	released := releasedChangelog(t)
+	released := releasedChangelog(t) + unreleasedUpgrade(t)
 
 	names := regexp.MustCompile(`(?m)^\t(Rule[A-Za-z]+) = "([a-z_]+)"$`).FindAllStringSubmatch(rules, -1)
-	if len(names) != 6 {
-		t.Fatalf("rules.go declares %d rule constants, want the six the package registers", len(names))
+	if len(names) < 6 {
+		t.Fatalf("rules.go declares %d rule constants, want at least the six the package registered first", len(names))
 	}
 	for _, name := range names {
 		for _, spelling := range []string{"`" + name[1] + "`", "`" + name[2] + "`"} {
 			if !strings.Contains(released, spelling) {
-				t.Errorf("no released changelog entry names %s", spelling)
+				t.Errorf("no released changelog entry and no upgrade note of the next release names %s", spelling)
 			}
 		}
 	}

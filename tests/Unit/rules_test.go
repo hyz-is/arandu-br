@@ -56,10 +56,10 @@ func TestTheRulesPlugIntoAHesapeValidator(t *testing.T) {
 	}
 	errs := failures(t, documentRules, refused)
 	for field, want := range map[string]string{
-		"cpf":      "is not a valid CPF",
-		"cnpj":     "is not a valid CNPJ",
-		"document": "is not a valid CPF or CNPJ",
-		"postcode": "is not a valid CEP",
+		"cpf":      "O campo cpf não é um CPF válido.",
+		"cnpj":     "O campo cnpj não é um CNPJ válido.",
+		"document": "O campo document não é um CPF ou CNPJ válido.",
+		"postcode": "O campo postcode não é um CEP válido.",
 	} {
 		if got := errs.Get(field); len(got) != 1 || !strings.Contains(got[0], want) {
 			t.Errorf("%s: messages = %q, want one saying %q", field, got, want)
@@ -116,12 +116,12 @@ func TestTheRuleNamesAreTheOnesHesapeKnows(t *testing.T) {
 	// The names as an application would spell them by hand, after this
 	// package has been initialized: the constants are the spelling, and these
 	// are what they hold.
-	for _, name := range []string{"cpf", "cnpj", "cpf_or_cnpj", "cep", "celular", "brl"} {
+	for _, name := range []string{"cpf", "cnpj", "cpf_or_cnpj", "cpf_ou_cnpj", "cep", "celular", "celular_com_ddd", "brl"} {
 		if _, err := validation.Compile(validation.Rules{"field": name}); err != nil {
 			t.Errorf("rule %q is not in the catalogue: %v", name, err)
 		}
 	}
-	if _, err := validation.Compile(validation.Rules{"field": "cpf_cnpj"}); err == nil {
+	if _, err := validation.Compile(validation.Rules{"field": "cpf_e_cnpj"}); err == nil {
 		t.Error("an unregistered rule name compiled, so the check above proves nothing")
 	}
 }

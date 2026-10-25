@@ -390,7 +390,7 @@ func TestTheBRLRulePlugsIntoAHesapeValidator(t *testing.T) {
 	}
 	errs := failures(t, amountRules, validation.Data{"budget": "1,234.56", "price": 1234})
 	for _, field := range []string{"budget", "price"} {
-		if got := errs.Get(field); len(got) != 1 || !strings.Contains(got[0], "is not a valid amount in reais") {
+		if got := errs.Get(field); len(got) != 1 || !strings.Contains(got[0], "O campo "+field+" não é um valor em reais válido.") {
 			t.Errorf("%s: messages = %q, want one saying it is not a valid amount in reais", field, got)
 		}
 	}
