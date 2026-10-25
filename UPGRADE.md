@@ -1,5 +1,28 @@
 # Upgrade Guide
 
+## Unreleased
+
+Nothing in this package's own API changes: `apidiff` against `v0.4.1` reports
+no change at all. What moves is what it compiles against.
+
+`go.mod` declares `go 1.26.10`. Every vulnerability an Arandu application
+reaches is in the Go standard library (crypto/x509, the HTTP/2 and CONNECT
+handling in net/http, html/template, net/textproto and crypto/tls) and is
+fixed in Go 1.26.10, so a module that declared less let a build run on a
+toolchain that still carries them. Build with Go 1.26.10 or later.
+
+The package requires Hesape `v0.85.0` (was `v0.54.0`), and `arandu.mod.toml`
+declares `framework = ">= 0.66"`, the first Framework release built on that
+Hesape:
+
+```bash
+go get github.com/arandu-io/framework@v0.66.0
+go get github.com/arandu-io/hesape@v0.85.0
+```
+
+An application below those follows the Framework and Hesape upgrade guides
+between the versions it had and these first.
+
 ## v0.4.1
 
 Nothing to change. `ParseMobile` now also accepts `(00)00000-0000`, the
