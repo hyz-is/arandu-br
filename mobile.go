@@ -26,16 +26,8 @@ const areaCodes = " 11 12 13 14 15 16 17 18 19 21 22 24 27 28 31 32 33 34 35 37 
 //
 // The digits come back bare, which is the spelling to store.
 func ParseMobile(s string) (string, error) {
-	// The area code closed with no space before the number is the same
-	// punctuation, one character shorter: read it with the space put back.
-	if len(s) == len(mobileMask)-1 && s[0] == '(' && s[3] == ')' && s[4] != ' ' {
-		s = s[:4] + " " + s[4:]
-	}
-	digits, ok := read(s, mobileMask)
+	digits, ok := readArea(s, mobileNumber)
 	if !ok {
-		return "", ErrInvalidMobile
-	}
-	if !containsField(areaCodes, digits[:2]) || digits[2] != '9' || digits[3:] == "00000000" {
 		return "", ErrInvalidMobile
 	}
 	return digits, nil
