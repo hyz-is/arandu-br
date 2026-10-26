@@ -75,6 +75,7 @@ same, and the string form works: `"required|cpf"`.
 | `celular_com_codigo` | `br.RuleMobileWithCountry` | `+55(11)91234-5678`, `+55 (11) 91234-5678` or `+5511912345678` |
 | `celular_com_codigo_sem_mascara` | `br.RuleMobileWithCountryBare` | `+5511912345678` or `+55 11 912345678` |
 | `telefone`, `telefone_com_ddd`, `telefone_com_codigo` | `br.RuleLocalLandline`, `br.RuleLandline`, `br.RuleLandlineWithCountry` | a landline number, `3000-0000`, `(11) 3000-0000`, `+55(11)3000-0000` |
+| `telefone_ou_celular` | `br.RuleAnyPhone` | a mobile or a landline number, with or without the area code: `91234-5678`, `3456-7890`, `(11) 91234-5678`, `(11) 3456-7890`, bare or punctuated |
 | `ddd` | `br.RuleAreaCode` | one of the 67 area codes Anatel assigns |
 | `placa` | `br.RulePlate` | any plate Brazil issued, the Mercosul one included, `ABC-1234`, `ABC1D23` |
 | `formato_placa_de_veiculo` | `br.RulePlateFormat` | three letters, a hyphen or none, a digit, a digit or a letter, two digits |
@@ -90,6 +91,12 @@ same, and the string form works: `"required|cpf"`.
 | `passaporte` | `br.RulePassport` | two letters and six digits |
 | `data`, `horario` | `br.RuleDate`, `br.RuleTimeOfDay` | `31/12/2026`, a day the month has; `15:04` or `15:04:05` |
 | `brl` (`moeda`) | `br.RuleBRL` | an amount in reais, as `ParseBRL` reads it |
+
+Which telephone rule: a field of a mobile number with the area code takes
+`celular_com_ddd`; a field with a dynamic mask, mobile or landline, with or
+without the area code, takes `telefone_ou_celular` (Laravel's rules add up, so
+`celular_com_ddd|telefone_com_ddd` refuses everything); a field of a landline
+number takes `telefone_com_ddd` or `telefone`.
 
 Each rule checks what the matching `Parse` function checks, and only a string:
 a CPF sent as a JSON number has already lost its leading zeros. A blank value is
@@ -194,6 +201,7 @@ bare spelling or an `Err…` and a `Valid` function beside it:
 | mobile number with area code | `ParseMobile` | 11 digits | `ErrInvalidMobile` |
 | mobile number without it, or with `+55` | `ParseLocalMobile`, `ParseMobileWithCountry` | 9 digits, `55` and 11 digits | `ErrInvalidMobile` |
 | landline | `ParseLandline`, `ParseLocalLandline`, `ParseLandlineWithCountry` | 10, 8, `55` and 10 digits | `ErrInvalidLandline` |
+| any telephone number | `ParseAnyPhone` | 8, 9, 10 or 11 digits | `ErrInvalidPhone` |
 | area code | `ParseAreaCode` | 2 digits | `ErrInvalidAreaCode` |
 | NIS, PIS | `ParseNIS` | 11 digits | `ErrInvalidNIS` |
 | Cartão Nacional de Saúde | `ParseCNS` | 15 digits | `ErrInvalidCNS` |
@@ -206,7 +214,7 @@ bare spelling or an `Err…` and a `Valid` function beside it:
 | inscrição estadual | `ParseStateRegistration(uf, s)` | its digits | `ErrInvalidStateRegistration` |
 | day, time of day | `ParseDate`, `ParseTimeOfDay` | `time.Time` at midnight UTC, `time.Duration` since midnight | `ErrInvalidDate`, `ErrInvalidTimeOfDay` |
 
-`NIS`, `CNS` and `Landline` punctuate a stored value like `CPF`.
+`NIS`, `CNS` and `Landline` punctuate a stored value like `CPF`, and `FormatPhone` picks the mask of a telephone number by its digits (8, 9, 10 or 11). `NormalizePhone` keeps the digits of text that already left the form.
 
 ### An amount in reais
 

@@ -48,6 +48,7 @@ go test -run='^$' -fuzz='^FuzzParseCNPJ$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseCEP$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseMobile$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParsePhones$' -fuzztime=30s ./tests/Unit
+go test -run='^$' -fuzz='^FuzzParseAnyPhone$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseStateRegistration$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzBRLAgreesWithHesapeUnderPtBR$' -fuzztime=30s ./tests/Unit
 go test -run='^$' -fuzz='^FuzzParseBRL$' -fuzztime=30s ./tests/Unit
@@ -63,7 +64,7 @@ It does not read this package after it is installed either, which is why
 | | measured with |
 | --- | --- |
 | 23 Go files in one package at the root | `grep -l '^package br' *.go` |
-| 15 test files, 9 fuzz targets | `find tests -name '*_test.go'` · `grep -c '^func Fuzz' tests/Unit/*.go` |
+| 15 test files, 10 fuzz targets | `find tests -name '*_test.go'` · `grep -c '^func Fuzz' tests/Unit/*.go` |
 | 0 routes, 0 tables, 0 capabilities | `arandu.mod.toml`, `TestThePackageIsALibrary` |
 | 1 direct dependency, `github.com/arandu-io/hesape` | `go list -m -f '{{if and (not .Indirect) (not .Main)}}{{.Path}} {{.Version}}{{end}}' all` |
 

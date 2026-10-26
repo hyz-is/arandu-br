@@ -1,6 +1,6 @@
 ---
 name: br-package
-description: Validate and format Brazilian values in an Arandu application with the Arandu BR package (Go, github.com/hyz-is/arandu-br). Use when the request is to "validate a CPF", "validate a CNPJ", "accept CPF or CNPJ", "the alphanumeric CNPJ", "validate a CEP", "format a CPF", "mask the CNPJ", "format money in reais", "R$ 1.234,56", "R$ 1234,56 without the dot", "R$ 47 without the centavos", "parse an amount in reais", "read the budget the user typed", "mask the CPF", "hide the CPF", "***.456.789-**", "format the date as dd/mm/yyyy", "list the states", "a select of UFs", "go get github.com/hyz-is/arandu-br", "unknown rule cpf", "rule cpf is already in the catalogue", "the CPF with spaces is refused", "validate a placa", "validate a telefone", "formato_cep", "celular_com_ddd", "inscricao_estadual", "validate a NIS, CNS, CNH, RENAVAM or titulo de eleitor", "br.Rules", "factory.Use", "br.Install", or when the application has its own NormalizeCPF, ValidCPF, FormatCNPJ, maskCPF, MaskedCPF, maskCNPJ, ParseBRL or BRL formatter, or when a project's go.mod already requires github.com/hyz-is/arandu-br. Covers the validation rules of the PHP packages, `factory.Use(br.Rules())`, why they are named by constant and how a package-level rule set names them, the Parse functions and what they accept, ParseBRL, storing the bare spelling, the formatters, BRL, FormatBRL and Date, RedactCPF and RedactCNPJ, the UF enum, and the symptoms that mean something is wired wrong.
+description: Validate and format Brazilian values in an Arandu application with the Arandu BR package (Go, github.com/hyz-is/arandu-br). Use when the request is to "validate a CPF", "validate a CNPJ", "accept CPF or CNPJ", "the alphanumeric CNPJ", "validate a CEP", "format a CPF", "mask the CNPJ", "format money in reais", "R$ 1.234,56", "R$ 1234,56 without the dot", "R$ 47 without the centavos", "parse an amount in reais", "read the budget the user typed", "mask the CPF", "hide the CPF", "***.456.789-**", "format the date as dd/mm/yyyy", "list the states", "a select of UFs", "go get github.com/hyz-is/arandu-br", "unknown rule cpf", "rule cpf is already in the catalogue", "the CPF with spaces is refused", "validate a placa", "validate a telefone", "formato_cep", "celular_com_ddd", "inscricao_estadual", "validate a NIS, CNS, CNH, RENAVAM or titulo de eleitor", "br.Rules", "factory.Use", "celular e telefone fixo no mesmo campo", "dynamic phone mask", "telefone_ou_celular", "br.Install", or when the application has its own NormalizeCPF, ValidCPF, FormatCNPJ, maskCPF, MaskedCPF, maskCNPJ, ParseBRL or BRL formatter, or when a project's go.mod already requires github.com/hyz-is/arandu-br. Covers the validation rules of the PHP packages, `factory.Use(br.Rules())`, why they are named by constant and how a package-level rule set names them, the Parse functions and what they accept, ParseBRL, storing the bare spelling, the formatters, BRL, FormatBRL and Date, RedactCPF and RedactCNPJ, the UF enum, and the symptoms that mean something is wired wrong.
 license: MIT
 metadata:
   audience: app
@@ -80,6 +80,14 @@ err := validators.Check(StoreCustomer)
 
 The string form works the same, `"required|cpf"`, and so does mixing these rules
 with the standard ones.
+
+**Which telephone rule.** A field of a mobile number with the area code takes
+`celular_com_ddd`. A field with a dynamic mask -- mobile or landline, with or
+without the area code, because WhatsApp takes a landline too -- takes
+`telefone_ou_celular` (`br.RuleAnyPhone`); rules add up in Laravel, so
+`celular_com_ddd|telefone_com_ddd` refuses every value. A landline field takes
+`telefone_com_ddd`, or `telefone` without the area code. Store what
+`br.ParseAnyPhone` returns, the digits, and show it with `br.FormatPhone`.
 
 **Write the constant, never the word.** `br.RuleCPFOrCNPJ` is checked by the
 compiler; `"cpf_ou_cnpj"` is a string nothing checks, and `cpf_or_cnpj`,
