@@ -10,6 +10,18 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-26
+
+### Added
+
+- The `telefone_ou_celular` rule (`RuleAnyPhone`), for a field with a dynamic
+  mask that takes a mobile or a landline number, with or without the area code:
+  `(11) 91234-5678`, `11912345678`, `91234-5678`, `(11) 3456-7890`, `34567890`.
+  `celular_com_ddd` takes only a mobile number, and rules are joined by AND, so
+  `celular_com_ddd|telefone_com_ddd` rejects everything.
+- `ParseAnyPhone`, `ValidAnyPhone`, `NormalizePhone` and `FormatPhone`, which picks
+  the mask by the number of digits.
+
 ## [0.6.0] - 2026-10-25
 
 ### Changed

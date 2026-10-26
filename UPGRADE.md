@@ -1,6 +1,6 @@
 # Upgrade Guide
 
-## Unreleased: v0.7.0
+## v0.7.0
 
 A minor release that adds one rule, `telefone_ou_celular` (`RuleAnyPhone`), and
 the functions beside it. Nothing is removed and `apidiff` against `v0.6.0`

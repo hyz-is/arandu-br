@@ -210,7 +210,7 @@ func captureReleaseValue(t *testing.T, body, pattern, label string) string {
 // It is written here and compared against the changelog rather than read out of
 // it: a test that took the number from the file it checks would pass on a file
 // that lost its heading.
-const currentVersion = "0.6.0"
+const currentVersion = "0.7.0"
 
 // TestTheChangelogAndTheUpgradeGuideAgreeOnTheVersion keeps the two pages a
 // person reads before upgrading from naming different releases, and the
