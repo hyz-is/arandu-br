@@ -35,6 +35,7 @@ func Defs() []validation.RuleDef {
 		def(RuleLocalLandline, nil, ValidLocalLandline, "O campo :attribute não é um telefone válido."),
 		def(RuleLandline, nil, ValidLandline, "O campo :attribute não é um telefone com DDD válido."),
 		def(RuleLandlineWithCountry, nil, ValidLandlineWithCountry, "O campo :attribute não é um telefone com código do país e DDD válido."),
+		def(RuleAnyPhone, nil, ValidAnyPhone, "O campo :attribute não é um telefone válido."),
 		def(RuleAreaCode, nil, ValidAreaCode, "O campo :attribute não é um DDD válido."),
 
 		def(RulePlate, nil, ValidPlate, "O campo :attribute não é uma placa de veículo válida."),

@@ -81,7 +81,7 @@ func TestEveryNameTheTaskNamesIsDeclared(t *testing.T) {
 	want := []string{
 		"cpf", "cnpj", "cpf_ou_cnpj", "formato_cpf", "formato_cnpj", "formato_cpf_ou_cnpj", "cep", "formato_cep",
 		"celular", "celular_com_ddd", "celular_com_codigo", "celular_com_codigo_sem_mascara",
-		"telefone", "telefone_com_ddd", "telefone_com_codigo", "placa", "formato_placa_de_veiculo", "renavam", "cnh",
+		"telefone", "telefone_com_ddd", "telefone_com_codigo", "telefone_ou_celular", "placa", "formato_placa_de_veiculo", "renavam", "cnh",
 		"titulo_eleitor", "nis", "pis", "formato_nis", "formato_pis", "cns", "certidao", "formato_certidao", "uf", "ddd",
 		"passaporte", "inscricao_estadual", "data", "horario", "moeda", "brl",
 		// the spellings that were or are another name for one of them

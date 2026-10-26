@@ -252,3 +252,72 @@ func ValidLandlineWithCountry(s string) bool {
 	_, err := ParseLandlineWithCountry(s)
 	return err == nil
 }
+
+// ErrInvalidPhone is what ParseAnyPhone returns for a value that is not a
+// Brazilian telephone number of either kind.
+var ErrInvalidPhone = errors.New("br: not a valid telephone number")
+
+// ParseAnyPhone returns the digits of a Brazilian telephone number, mobile or
+// landline, with or without the area code, and ErrInvalidPhone for anything
+// else. It is for the field whose mask changes as the person types.
+//
+// The value is the digits bare or in their usual punctuation, by length:
+//
+//	8 digits   a landline without the area code, 0000-0000, the first digit 2 to 9
+//	9 digits   a mobile number without it, 00000-0000, the first digit 9
+//	10 digits  a landline with it, (00) 0000-0000 or (00)0000-0000
+//	11 digits  a mobile number with it, (00) 00000-0000 or (00)00000-0000
+//
+// The area code is one Anatel assigns. A ten-digit number whose third digit is
+// 9 is refused, because it is the eleven-digit mobile number missing a digit
+// and not a landline. The country code is not read: ParseMobileWithCountry and
+// ParseLandlineWithCountry are for that. A repetition of one digit is refused.
+// The digits come back bare, which is the spelling to store.
+func ParseAnyPhone(s string) (string, error) {
+	for _, parse := range [...]func(string) (string, error){ParseMobile, ParseLandline, ParseLocalMobile, ParseLocalLandline} {
+		digits, err := parse(s)
+		if err != nil || repeated(digits) {
+			continue
+		}
+		if len(digits) == 10 && digits[2] == '9' {
+			continue
+		}
+		return digits, nil
+	}
+	return "", ErrInvalidPhone
+}
+
+// ValidAnyPhone reports whether ParseAnyPhone accepts s.
+func ValidAnyPhone(s string) bool {
+	_, err := ParseAnyPhone(s)
+	return err == nil
+}
+
+// NormalizePhone returns the digits of s and drops every other character: the
+// parentheses, the hyphen, the spaces and a plus sign.
+//
+// It is for text that already left the form, to compare with the stored
+// spelling. It does not validate and does not check the length; taking a value
+// in is ParseAnyPhone.
+func NormalizePhone(s string) string { return NormalizeCPF(s) }
+
+// FormatPhone writes the digits of a telephone number punctuated by their
+// count: 8 as 0000-0000, 9 as 00000-0000, 10 as (00) 0000-0000 and 11 as
+// (00) 00000-0000. Any other length, and a value that is not all digits, is
+// returned unchanged: it formats, and does not validate.
+func FormatPhone(digits string) string {
+	if NormalizePhone(digits) != digits {
+		return digits
+	}
+	switch len(digits) {
+	case 8:
+		return format(digits, "9999-9999")
+	case 9:
+		return format(digits, "99999-9999")
+	case 10:
+		return format(digits, "(99) 9999-9999")
+	case 11:
+		return format(digits, "(99) 99999-9999")
+	}
+	return digits
+}

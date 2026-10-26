@@ -70,6 +70,10 @@ const (
 	// RuleLandlineWithCountry is a landline number with the country code, as
 	// ParseLandlineWithCountry accepts it.
 	RuleLandlineWithCountry = "telefone_com_codigo"
+	// RuleAnyPhone is a telephone number, mobile or landline, with or without
+	// the area code, as ParseAnyPhone accepts it: the field whose mask changes
+	// as the person types.
+	RuleAnyPhone = "telefone_ou_celular"
 	// RuleAreaCode is an area code, as ParseAreaCode accepts it.
 	RuleAreaCode = "ddd"
 

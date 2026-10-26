@@ -1,5 +1,65 @@
 # Upgrade Guide
 
+## Unreleased: v0.7.0
+
+A minor release that adds one rule, `telefone_ou_celular` (`RuleAnyPhone`), and
+the functions beside it. Nothing is removed and `apidiff` against `v0.6.0`
+reports additions only.
+
+A form field with a dynamic mask takes a mobile number (nine digits) or a
+landline number (eight), with or without the area code, in the same input. The
+rules of Laravel add up, every one of them has to pass, so
+`celular_com_ddd|telefone_com_ddd` refuses every value. And since v0.5.0
+`celular` is the number without the area code and `celular_com_ddd` accepts a
+mobile number only, so no rule of the package took any telephone number. This
+one does.
+
+### Which rule to use
+
+| the field | the rule |
+| --- | --- |
+| only a mobile number, with the area code | `celular_com_ddd` |
+| a mobile or a landline number, with or without the area code (the dynamic mask) | `telefone_ou_celular` |
+| only a landline number | `telefone_com_ddd`, or `telefone` without the area code |
+
+`celular` (no area code) and the `*_com_codigo` rules, for the country code, stay
+the dedicated ones for those fields.
+
+### What telefone_ou_celular accepts
+
+It takes the digits bare or in their usual punctuation, by length:
+
+| digits | the number | spelled |
+| --- | --- | --- |
+| 8 | a landline without the area code, the first digit 2 to 9 | `3456-7890`, `34567890` |
+| 9 | a mobile number without it, the first digit 9 | `91234-5678`, `912345678` |
+| 10 | a landline with it | `(11) 3456-7890`, `(11)3456-7890`, `1134567890` |
+| 11 | a mobile number with it, a 9 after the area code | `(11) 91234-5678`, `(11)91234-5678`, `11912345678` |
+
+The area code is one of the 67 Anatel assigns, as in `celular_com_ddd` and
+`telefone_com_ddd`. It refuses any other length, letters, the country code, a
+repetition of one digit, and a ten-digit number whose third digit is 9 -- the
+eleven-digit mobile number missing a digit. An eight-digit number that starts
+with 9 passes, as it does for `telefone`.
+
+```go
+"phone": "required|telefone_ou_celular", // br.RuleAnyPhone
+```
+
+Its sentence is `O campo :attribute não é um telefone válido.`
+
+### The functions
+
+```go
+digits, err := br.ParseAnyPhone(in.String("phone")) // the digits to store, or br.ErrInvalidPhone
+ok := br.ValidAnyPhone(s)
+digits := br.NormalizePhone(s)  // only the digits of text that already left the form; it validates nothing
+shown := br.FormatPhone(digits) // 8: 0000-0000, 9: 00000-0000, 10: (00) 0000-0000, 11: (00) 00000-0000
+```
+
+`FormatPhone` returns anything that is not all digits, or whose length is not
+one of the four, unchanged: it formats and does not validate.
+
 ## v0.6.0
 
 A minor release that breaks the registration API of v0.5.0 on purpose, to match

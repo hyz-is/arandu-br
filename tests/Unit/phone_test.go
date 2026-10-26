@@ -206,3 +206,139 @@ func FuzzParsePhones(f *testing.F) {
 		}
 	})
 }
+
+func TestParseAnyPhone(t *testing.T) {
+	t.Parallel()
+	cases := []parseCase{
+		// A mobile number, with or without the area code.
+		{"(11) 91234-5678", "11912345678"},
+		{"(11)91234-5678", "11912345678"},
+		{"11912345678", "11912345678"},
+		{"91234-5678", "912345678"},
+		{"912345678", "912345678"},
+		// A landline, with or without it.
+		{"1134567890", "1134567890"},
+		{"(11) 3456-7890", "1134567890"},
+		{"(11)3456-7890", "1134567890"},
+		{"3456-7890", "34567890"},
+		{"34567890", "34567890"},
+		{"(85) 2000-0001", "8520000001"},
+		// An area code that Anatel does not assign.
+		{"(10) 91234-5678", ""},
+		{"(20) 3456-7890", ""},
+		{"1091234567", ""},
+		{"(00) 3456-7890", ""},
+		// A length that is not 8, 9, 10 or 11.
+		{"", ""},
+		{"3456789", ""},
+		{"1234567890123", ""},
+		{"119123456789", ""},
+		{"(11) 91234-56789", ""},
+		// Ten digits whose third is 9, and eleven with no 9 after the area code.
+		{"1191234567", ""},
+		{"(11) 9123-4567", ""},
+		{"11812345678", ""},
+		{"(11) 81234-5678", ""},
+		// A landline starts with 2 to 9 and a mobile number with 9.
+		{"1456-7890", ""},
+		{"0456-7890", ""},
+		{"812345678", ""},
+		// Repeated digits.
+		{"22222222", ""},
+		{"99999999", ""},
+		{"999999999", ""},
+		{"2222222222", ""},
+		{"99999999999", ""},
+		{"(11) 11111-1111", ""},
+		// Letters, a plus sign, the country code and punctuation out of place.
+		{"(11) 9123A-5678", ""},
+		{"abcdefgh", ""},
+		{"+55 (11) 91234-5678", ""},
+		{"+5511912345678", ""},
+		{"5511912345678", ""},
+		{"11 91234-5678", ""},
+		{"(11)  91234-5678", ""},
+		{"(11) 9123-45678", ""},
+		{"91234 5678", ""},
+		{" 91234-5678", ""},
+		{"91234-5678 ", ""},
+		{"٩١٢٣٤٥٦٧٨", ""},
+	}
+	runParse(t, "ParseAnyPhone", br.ParseAnyPhone, br.ValidAnyPhone, br.ErrInvalidPhone, cases)
+}
+
+func TestAnyPhoneAcceptsWhatTheFourKindsAccept(t *testing.T) {
+	t.Parallel()
+	// Every value the dedicated parsers accept is a telephone number, except a
+	// repetition and the ten digits whose third is 9, which the field refuses.
+	for _, in := range []string{"(11) 91234-5678", "11912345678", "91234-5678", "(11) 3000-0000", "1130000000", "3000-0000", "9800-1936", "(31)9999-5555"} {
+		dedicated := br.ValidMobile(in) || br.ValidLandline(in) || br.ValidLocalMobile(in) || br.ValidLocalLandline(in)
+		if !dedicated {
+			t.Fatalf("%q is not a number of any dedicated kind", in)
+		}
+	}
+	// The dynamic field takes 9800-1936, an eight-digit number, as telefone does,
+	// and refuses (31)9999-5555, a ten-digit one whose third digit is 9.
+	if !br.ValidAnyPhone("9800-1936") || br.ValidAnyPhone("(31)9999-5555") {
+		t.Error("the eight-digit and the ten-digit rules for a leading 9 are not as documented")
+	}
+}
+
+func TestNormalizePhoneAndFormatPhone(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]string{
+		"(11) 91234-5678":    "11912345678",
+		"+55 (11) 3456-7890": "551134567890",
+		" 3456-7890 ":        "34567890",
+		"":                   "",
+		"abc":                "",
+		"١٢٣":                "",
+	} {
+		if got := br.NormalizePhone(in); got != want {
+			t.Errorf("NormalizePhone(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for in, want := range map[string]string{
+		"34567890":       "3456-7890",
+		"912345678":      "91234-5678",
+		"1134567890":     "(11) 3456-7890",
+		"11912345678":    "(11) 91234-5678",
+		"":               "",
+		"3456789":        "3456789",
+		"551134567890":   "551134567890",
+		"(11) 3456-7890": "(11) 3456-7890",
+		"3456-7890":      "3456-7890",
+		"1134A67890":     "1134A67890",
+	} {
+		if got := br.FormatPhone(in); got != want {
+			t.Errorf("FormatPhone(%q) = %q, want %q", in, got, want)
+		}
+	}
+	// What the field stores is what it shows: format, parse, the same digits.
+	for _, in := range []string{"34567890", "912345678", "1134567890", "11912345678"} {
+		if got, err := br.ParseAnyPhone(br.FormatPhone(in)); err != nil || got != in {
+			t.Errorf("ParseAnyPhone(FormatPhone(%q)) = %q, %v", in, got, err)
+		}
+	}
+}
+
+func FuzzParseAnyPhone(f *testing.F) {
+	for _, seed := range []string{"", "(11) 91234-5678", "1134567890", "34567890", "912345678", "(11)3456-7890", "1191234567", "\x00"} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		digits, err := br.ParseAnyPhone(s)
+		if err != nil {
+			return
+		}
+		if n := len(digits); n < 8 || n > 11 {
+			t.Fatalf("ParseAnyPhone(%q) = %q", s, digits)
+		}
+		if br.NormalizePhone(digits) != digits {
+			t.Fatalf("ParseAnyPhone(%q) = %q, not digits", s, digits)
+		}
+		if again, err := br.ParseAnyPhone(br.FormatPhone(digits)); err != nil || again != digits {
+			t.Fatalf("the punctuated %q of %q does not parse back: %q, %v", br.FormatPhone(digits), digits, again, err)
+		}
+	})
+}
